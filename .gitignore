@@ -1,0 +1,47 @@
+# Rust build artifacts
+/target/
+
+# Gateway runtime state (local databases, snapshots, test vaults)
+/pagi-gateway/data/
+/data/
+/add-ons/pagi-gateway/data/
+
+# Vector databases (personal knowledge bases KB-01 through KB-08)
+/storage/
+/vector_db/
+*.sled/
+
+# User configuration (local API keys, personal settings)
+user_config.toml
+config/user_config.toml
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Node modules
+node_modules/
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Sled lock files
+*.lock
+
+# Qdrant binary (large; use VECTORKB_ACTIVATION_GUIDE to download)
+qdrant/
+qdrant.zip

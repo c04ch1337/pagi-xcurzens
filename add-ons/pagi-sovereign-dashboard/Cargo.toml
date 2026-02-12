@@ -1,0 +1,15 @@
+[package]
+name = "pagi-sovereign-dashboard"
+version = "0.2.0"
+edition = "2021"
+description = "Sovereign Dashboard CLI — cross-layer situation report (all 9 slots)"
+
+[[bin]]
+name = "pagi"
+path = "src/main.rs"
+
+[dependencies]
+pagi-core = { path = "../../crates/pagi-core" }
+comfy-table = "7"
+chrono = "0.4"
+reqwest = { version = "0.11", default-features = false, features = ["json", "blocking"] }

@@ -1,0 +1,208 @@
+# Knowledge Map Configuration for Deep Audit Skill
+# Defines semantic routing rules for the 8-layered KB structure
+# 
+# This configuration maps keywords and patterns to specific Knowledge Bases,
+# enabling the "Scribe" pipeline to automatically route documents to the
+# appropriate collection in Qdrant (Port 6333).
+
+[metadata]
+version = "1.0.0"
+description = "Sovereign Deep Audit Knowledge Base Routing Configuration"
+domain = "21-acre coastal tourism development"
+
+# KB-01: Psyche - General Context & Foundational Knowledge
+[kb.psyche]
+collection = "kb-01-psyche"
+description = "General context, foundational knowledge, and default routing"
+keywords = [
+    "general",
+    "overview",
+    "introduction",
+    "background",
+    "context",
+    "foundation"
+]
+priority = 1  # Lowest priority (default fallback)
+
+# KB-02: Chronos - Temporal Memory & Scheduling
+[kb.chronos]
+collection = "kb-02-chronos"
+description = "Time-based information, scheduling, deadlines, and temporal patterns"
+keywords = [
+    "schedule",
+    "calendar",
+    "deadline",
+    "timeline",
+    "chronos",
+    "appointment",
+    "meeting time",
+    "due date",
+    "milestone",
+    "phase"
+]
+priority = 7
+
+# KB-03: Techne - Infrastructure & Technical Knowledge
+[kb.techne]
+collection = "kb-03-techne"
+description = "Technical infrastructure, code, APIs, and system architecture"
+keywords = [
+    "code",
+    "rust",
+    "port",
+    "api",
+    "infrastructure",
+    "deployment",
+    "docker",
+    "kubernetes",
+    "server",
+    "database",
+    "qdrant",
+    "vector",
+    "technical",
+    "architecture",
+    "system",
+    "implementation"
+]
+priority = 8
+
+# KB-04: Logos - Conversational Patterns & Dialogue
+[kb.logos]
+collection = "kb-04-logos"
+description = "Conversational memory, dialogue patterns, and communication"
+keywords = [
+    "conversation",
+    "dialogue",
+    "chat",
+    "message",
+    "communication",
+    "discussion",
+    "exchange",
+    "interaction"
+]
+priority = 6
+
+# KB-05: Polis - XCURZENS Hub (Coastal Tourism Domain)
+[kb.polis]
+collection = "kb-05-polis"
+description = "Tourism development, market analysis, coastal projects, and XCURZENS Hub"
+keywords = [
+    "tourism",
+    "market",
+    "coastal",
+    "xcurzens",
+    "visitor",
+    "destination",
+    "hospitality",
+    "resort",
+    "beach",
+    "waterfront",
+    "development",
+    "property",
+    "real estate",
+    "investment",
+    "economic",
+    "community",
+    "local",
+    "regional",
+    "attraction",
+    "amenity",
+    "21-acre",
+    "21 acre"
+]
+priority = 10  # Highest priority for domain-specific content
+
+# KB-06: Telos - Strategic Goals & North Star Alignment
+[kb.telos]
+collection = "kb-06-telos"
+description = "Strategic planning, goals, objectives, and mission alignment"
+keywords = [
+    "strategic",
+    "goal",
+    "objective",
+    "mission",
+    "vision",
+    "roadmap",
+    "strategy",
+    "planning",
+    "initiative",
+    "priority",
+    "target",
+    "outcome",
+    "success",
+    "alignment",
+    "north star"
+]
+priority = 9
+
+# KB-07: Mimir - Meeting Memory & Voice Transcripts
+[kb.mimir]
+collection = "kb-07-mimir"
+description = "Meeting transcripts, voice conversations, and collaborative memory"
+keywords = [
+    "meeting",
+    "mimir",
+    "voice",
+    "transcript",
+    "conversation",
+    "discussion",
+    "minutes",
+    "recording",
+    "audio",
+    "session",
+    "briefing",
+    "debrief",
+    "standup",
+    "review"
+]
+priority = 8
+
+# KB-08: Soma - Physical Embodiment & Wellness
+[kb.soma]
+collection = "kb-08-soma"
+description = "Physical health, wellness, biometrics, and embodiment"
+keywords = [
+    "physical",
+    "health",
+    "wellness",
+    "exercise",
+    "biometric",
+    "vitality",
+    "fitness",
+    "body",
+    "sleep",
+    "energy",
+    "stress",
+    "recovery",
+    "movement",
+    "activity"
+]
+priority = 7
+
+# Redaction Configuration
+[redaction]
+enabled = true
+protected_terms_file = "data/protected_terms.txt"
+project_policy_file = ".sao_policy"
+placeholder = "[PROTECTED_TERM]"
+
+# Ingestion Configuration
+[ingestion]
+watch_directory = "data/ingest"
+max_file_size_mb = 5
+triage_token_limit = 500
+auto_archive = true
+archive_directory = "data/ingest/processed"
+
+# Qdrant Configuration
+[qdrant]
+host = "localhost"
+port = 6333
+timeout_seconds = 30
+batch_size = 100
+
+# Sovereign Voice Messages
+[messages]
+scribe_active = "Jamey, the Scribe is active. The 8 Knowledge Bases are no longer silent archives; they are living extensions of your 21-acre domain. Drop your data, and the system will remember."
+audit_complete = "Deep Audit complete. {files_processed} files processed, {vectors_created} vectors created across the Knowledge Bases."
+bandwidth_warning = "File exceeds 5MB threshold. Using local embeddings to preserve satellite bandwidth."

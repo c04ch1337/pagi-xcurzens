@@ -1,0 +1,31 @@
+[package]
+name = "pagi-federation"
+version = "0.1.0"
+edition = "2021"
+description = "Federated Communication Layer: gRPC bridge for Phoenix AGI (Jamey) and Satellites"
+
+[dependencies]
+tokio = { workspace = true }
+tonic = { version = "0.12", features = ["tls", "tls-roots"] }
+prost = "0.13"
+dashmap = { workspace = true }
+tracing = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+async-trait = "0.1"
+thiserror = "2.0"
+uuid = { version = "1.6", features = ["v4", "serde"] }
+chrono = { workspace = true }
+tokio-stream = "0.1"
+futures-util = "0.3"
+
+# mTLS: server and client certificate handling
+rustls = { version = "0.23", features = ["ring"] }
+rustls-pemfile = "2.0"
+tokio-rustls = "0.26"
+
+# Optional: integrate with Jamey's core (memory, orchestrator trait)
+pagi-core = { path = "../pagi-core" }
+
+[build-dependencies]
+tonic-build = "0.12"

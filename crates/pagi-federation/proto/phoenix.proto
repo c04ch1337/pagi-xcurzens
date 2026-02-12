@@ -1,0 +1,83 @@
+syntax = "proto3";
+
+package federation;
+
+// PhoenixService: Jamey (Master Orchestrator) <-> Satellites.
+// Binary Protocol Buffers for bandwidth-efficient federated control.
+service PhoenixService {
+  // Satellites announce their Role and Hardware; Jamey tracks them in the registry.
+  rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse);
+
+  // Bi-directional stream: Satellite sends TaskResult, Jamey sends Task.
+  // Client (Satellite) sends stream of TaskResult; Server (Jamey) sends stream of Task.
+  rpc SubmitTask(stream TaskResult) returns (stream Task);
+
+  // Optional: Satellites stream heartbeats (bandwidth, CPU) every 30s.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+message RegisterNodeRequest {
+  string node_id = 1;
+  string role = 2;           // e.g. "RedTeam", "Finance", "Research"
+  string host = 3;           // IP or hostname of the satellite
+  uint32 port = 4;
+  repeated string capabilities = 5;  // e.g. ["red_team_scan", "nmap", "burp"]
+  HardwareSpecs hardware = 6;
+}
+
+message HardwareSpecs {
+  uint32 cpu_cores = 1;
+  uint64 ram_mb = 2;
+  string os = 3;
+  string arch = 4;
+}
+
+message RegisterNodeResponse {
+  bool accepted = 1;
+  string message = 2;
+  string master_identity = 3;  // "Jamey"
+}
+
+// ---------------------------------------------------------------------------
+// Task dispatch and result
+// ---------------------------------------------------------------------------
+
+message Task {
+  string task_id = 1;
+  string goal = 2;           // e.g. "red_team_scan"
+  string context_json = 3;   // Serialized context (target_ip, options, etc.)
+  string tenant_id = 4;
+  int64 created_at_ms = 5;
+}
+
+message TaskResult {
+  string task_id = 1;
+  bool success = 2;
+  string summary = 3;        // Summarized report for Jamey's memory
+  string details_json = 4;   // Optional full payload
+  string node_id = 5;
+  string role = 6;
+  int64 completed_at_ms = 7;
+  uint32 energy_used = 8;
+  string tenant_id = 9;      // For Jamey's multi-layer memory logging
+}
+
+// ---------------------------------------------------------------------------
+// Heartbeat (Satellite -> Jamey every 30s)
+// ---------------------------------------------------------------------------
+
+message HeartbeatRequest {
+  string node_id = 1;
+  double bandwidth_mbps = 2;   // Approximate available bandwidth
+  double cpu_percent = 3;
+  uint64 ram_used_mb = 4;
+  int64 at_ms = 5;
+}
+
+message HeartbeatResponse {
+  bool ack = 1;
+}

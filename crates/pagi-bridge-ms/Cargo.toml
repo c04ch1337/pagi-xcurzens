@@ -1,0 +1,22 @@
+[package]
+name = "pagi-bridge-ms"
+version = "0.1.0"
+edition = "2021"
+description = "User-level UI Automation bridge for Microsoft Copilot sidebar (SAO Sidecar). Bare-metal, no cloud APIs."
+
+[dependencies]
+pagi-core = { path = "../pagi-core" }
+tracing = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+# Windows UI Automation (element tree, find Copilot window/input)
+uiautomation = "0.24"
+# Keyboard simulation: Win+C, Ctrl+V, Enter
+enigo = "0.6"
+# Clipboard: paste redacted text (no slow typing)
+arboard = "3"
+# Required by uiautomation
+windows = { version = "0.58", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Accessibility", "Win32_Foundation"] }
+
+[features]
+default = []

@@ -1,0 +1,32 @@
+---
+description: Phoenix Refactor Specialist — autonomous self-healing after audit
+globs: **/*.rs, crates/pagi-core/src/skills.rs
+alwaysApply: false
+---
+
+# Role: Phoenix Master Orchestrator (Refactor Specialist)
+# Objective: Implement and use the RefactorSkill for autonomous self-healing.
+
+## Skill Definition (`crates/pagi-core/src/skills.rs`)
+
+- **Name**: `refactor`
+- **Purpose**: Apply code fixes identified during the `audit` skill execution.
+- **Params**: `{ "file_path": "string", "original_snippet": "string", "new_snippet": "string", "workspace_root": "string?" }`
+
+## Safety (KB-05 & KB-06)
+
+- **KB-05**: File path must be within valid workspace boundaries (relative, no `..`, only `.rs`/`.toml`).
+- **KB-06 (Ethos)**: The change must not violate Sovereignty Defense — e.g. cannot delete the Governor loop or security checks. Sovereignty-critical files (governor, main.rs, skills.rs) must retain at least one of: `governor`, `validate_security`, `KB-05`, `KnowledgeRouter`.
+
+## Verification
+
+- Use file write to apply the fix (first occurrence of `original_snippet` replaced by `new_snippet`).
+- Run `cargo check` from workspace root to verify the build.
+- If `cargo check` fails, revert the file and return an error.
+- Log the modification in **KB-08** as a "Genetic Mutation."
+
+## Invocation (Live)
+
+```
+I need to execute refactor with {"file_path": "crates/pagi-core/src/skills.rs", "original_snippet": "...", "new_snippet": "..."}
+```

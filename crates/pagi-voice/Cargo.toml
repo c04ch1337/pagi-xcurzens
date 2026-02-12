@@ -1,0 +1,52 @@
+[package]
+name = "pagi-voice"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Workspace dependencies
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+
+# Audio capture (bare metal, no Docker)
+cpal = "0.15"
+
+# Voice Activity Detection
+# Note: Using webrtc-vad for now. Silero VAD integration will be added in Stage 2
+# when ONNX runtime compatibility is resolved
+webrtc-vad = "0.4"
+
+# Audio playback for interruption handling
+rodio = "0.17"
+
+# Async runtime utilities
+tokio-stream = "0.1"
+futures = "0.3"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# HTTP for production TTS/STT (OpenAI-compatible APIs)
+reqwest = { version = "0.12", features = ["json", "rustls-tls", "blocking", "multipart"] }
+
+# Logging
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Load .env in examples (sovereign_voice_demo)
+dotenvy = { workspace = true }
+
+# Local Whisper STT (optional). Requires whisper.cpp/ggml build; enable with --features whisper.
+# See README for model download (e.g. ggml-base.en.bin from Hugging Face ggerganov/whisper.cpp).
+whisper-rs = { version = "0.15", optional = true }
+
+[features]
+default = []
+# Enable local Whisper STT. Requires WHISPER_MODEL_PATH to a .bin model (e.g. ggml-base.en.bin).
+whisper = ["dep:whisper-rs"]
+
+[dev-dependencies]
+tokio-test = "0.4"

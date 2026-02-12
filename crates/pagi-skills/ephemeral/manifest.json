@@ -1,0 +1,6 @@
+{
+  "$schema": "https://pagi.sovereign/skills-manifest-v1.json",
+  "trust_tier": "generated",
+  "description": "Tier 3: Orchestrator-generated (ephemeral). No KB-01 or KB-09. Crystallized macros from KB-08 success traces.",
+  "skills": []
+}

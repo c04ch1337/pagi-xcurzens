@@ -1,0 +1,47 @@
+{
+  "$schema": "https://pagi.sovereign/skills-manifest-v1.json",
+  "trust_tier": "core",
+  "description": "Tier 1: Human-authored, local. Only core skills may access KB-01 (Soul) and KB-09 (Shadow/PII).",
+  "skills": [
+    {
+      "skill_id": "KnowledgeQuery",
+      "kb_layers_allowed": [1, 2, 3, 4, 5, 6, 7, 8],
+      "description": "Query knowledge bases (L2 Memory)."
+    },
+    {
+      "skill_id": "ModelRouter",
+      "kb_layers_allowed": [1, 2, 3, 4, 5, 6, 7, 8],
+      "description": "Route prompts to LLM (OpenRouter)."
+    },
+    {
+      "skill_id": "ReflectShadowSkill",
+      "kb_layers_allowed": [1, 9],
+      "description": "Shadow/PII reflection (KB-09). Core-only."
+    },
+    {
+      "skill_id": "CounselorSkill",
+      "kb_layers_allowed": [1, 5, 6, 8],
+      "description": "Holistic Life Warden (Spirit/Mind/Body)."
+    },
+    {
+      "skill_id": "EthosSync",
+      "kb_layers_allowed": [1, 5, 8],
+      "description": "Ethos policy sync (KB-05)."
+    },
+    {
+      "skill_id": "IdentitySetup",
+      "kb_layers_allowed": [1],
+      "description": "Identity onboarding: personality, energy drains, communication style (KB-01)."
+    },
+    {
+      "skill_id": "BioGateSync",
+      "kb_layers_allowed": [1, 5, 8],
+      "description": "Biometric gate sync."
+    },
+    {
+      "skill_id": "OikosTaskGovernor",
+      "kb_layers_allowed": [1, 5, 6, 8],
+      "description": "Task governance (Oikos)."
+    }
+  ]
+}

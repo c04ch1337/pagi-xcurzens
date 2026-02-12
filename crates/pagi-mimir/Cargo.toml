@@ -1,0 +1,44 @@
+[package]
+name = "pagi-mimir"
+version = "0.1.0"
+edition = "2021"
+description = "Mimir Meeting Documentation Layer — sovereign meeting capture, Whisper transcription, Chronos archival"
+
+[dependencies]
+# Workspace
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+chrono = { workspace = true }
+
+# Audio capture (bare metal)
+cpal = "0.15"
+
+# WAV encoding for buffers / export
+hound = "3.5"
+
+# Voice/STT: pagi-voice (PlaceholderStt always; WhisperStt with --features whisper).
+pagi-voice = { path = "../pagi-voice" }
+
+# Chronos-compatible storage (same SQLite as gateway)
+rusqlite = { version = "0.31", features = ["bundled"] }
+uuid = { version = "1", features = ["v4"] }
+
+# Env and paths
+dotenvy = { workspace = true }
+
+# CLI and logging
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+[target.'cfg(windows)'.dependencies]
+# Optional: virtual audio / loopback helpers on Windows
+
+[features]
+default = []
+# Enable local Whisper STT (requires WHISPER_MODEL_PATH and libclang/LIBCLANG_PATH).
+whisper = ["pagi-voice/whisper"]
+
+[[bin]]
+name = "pagi-mimir"
+path = "src/main.rs"

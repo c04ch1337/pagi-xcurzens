@@ -1,0 +1,1938 @@
+//! Sled-backed store with one tree per KB slot (kb1–kb9).
+//! Slot metadata can be initialized with `pagi_init_kb_metadata()`.
+//!
+//! ## L2 Memory Architecture — Holistic Ontology (Distributed Cognitive Map)
+//!
+//! | Slot | KbType  | Purpose (Cognitive Domain)                          | Security       |
+//! |------|--------|------------------------------------------------------|----------------|
+//! | 1    | Pneuma | Vision: Agent identity, mission, evolving playbook  | Standard (Sled)|
+//! | 2    | Oikos  | Context: Workspace scan, "where" the system lives    | Standard (Sled)|
+//! | 3    | Logos  | Pure knowledge: Research, distilled information     | Standard (Sled)|
+//! | 4    | Chronos| Temporal: Conversation history, short/long-term     | Standard (Sled)|
+//! | 5    | Techne | Capability: Skills registry, blueprints, how-to      | Standard (Sled)|
+//! | 6    | Ethos  | Guardrails: Security, audit, "should" constraints   | Standard (Sled)|
+//! | 7    | Kardia | Affective: User preferences, "who" and vibe        | Standard (Sled)|
+//! | 8    | Soma   | Execution: Physical interface, side effects, buffer  | Standard (Sled)|
+//! | 9    | Shadow | The Vault: Trauma, anchors, private journaling      | **AES-256-GCM**|
+
+use crate::shared::{
+    BiometricState, EthosPolicy, GovernedTask, MentalState, PersonRecord, SomaState,
+    KARDIA_PEOPLE_PREFIX, MENTAL_STATE_KEY,
+};
+use super::vault::{EmotionalAnchor, SecretVault, VaultError};
+use serde::{Deserialize, Serialize};
+use sled::Db;
+use std::path::Path;
+use uuid::Uuid;
+
+const DEFAULT_PATH: &str = "./data/pagi_knowledge";
+
+/// Key prefix for KB-08 (Soma) Absurdity Log entries. Used by self_audit to scan logic inconsistencies.
+pub const ABSURDITY_LOG_PREFIX: &str = "absurdity_log/";
+
+/// Key prefix for KB-08 Success Metrics (e.g. sovereignty leak addressed). Self-improvement hook.
+pub const SUCCESS_METRIC_PREFIX: &str = "success_metric/";
+
+/// Key prefix for KB-08 Archetype usage (per-turn overlay for Weekly Health Report breakdown).
+pub const ARCHETYPE_USAGE_PREFIX: &str = "archetype_usage/";
+
+/// Key in KB-01 (Pneuma) for the Sovereign Identity / first-boot handshake (UserPersona).
+/// Stored in slot 1 so first boot works without PAGI_SHADOW_KEY / vault.
+pub const SOVEREIGN_IDENTITY_KEY: &str = "sovereign_user_persona";
+
+/// Key prefix in KB-04 (Chronos) for conversation history: `conversation/{agent_id}/`.
+/// Used by get_recent_conversation to build context for the system prompt.
+pub const CHRONOS_CONVERSATION_PREFIX: &str = "conversation/";
+
+/// Tree names for the 9 KB slots (internal Sled tree identifiers).
+const TREE_NAMES: [&str; 9] = [
+    "kb1_identity",
+    "kb2_techdocs",
+    "kb3_research",
+    "kb4_memory",
+    "kb5_skills",
+    "kb6_security",
+    "kb7_personal",
+    "kb8_buffer",
+    "kb9_shadow",
+];
+
+/// Human-readable names for the 9 knowledge base slots (Holistic Ontology + Shadow Vault).
+pub const SLOT_LABELS: [&str; 9] = [
+    "Pneuma (Vision)",      // KB-1: Identity, mission, evolving playbook
+    "Oikos (Context)",      // KB-2: Workspace, "where" the system lives
+    "Logos (Knowledge)",    // KB-3: Research, distilled information
+    "Chronos (Temporal)",   // KB-4: Memory, conversation history
+    "Techne (Capability)",  // KB-5: Skills, blueprints, how-to
+    "Ethos (Guardrails)",   // KB-6: Security, audit, constraints
+    "Kardia (Affective)",   // KB-7: User prefs, "who" and vibe
+    "Soma (Execution)",     // KB-8: Physical interface, buffer, side effects
+    "Shadow (The Vault)",   // KB-9: Encrypted emotional data, trauma, anchors
+];
+
+/// Knowledge Base type enum for type-safe slot references (Holistic Ontology + Shadow Vault).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum KbType {
+    /// KB-1: Vision — agent identity, mission, evolving playbook
+    Pneuma = 1,
+    /// KB-2: Context — workspace scan, "where" the system lives
+    Oikos = 2,
+    /// KB-3: Pure knowledge — research, distilled information (Internal Wikipedia)
+    Logos = 3,
+    /// KB-4: Temporal — conversation history, short/long-term
+    Chronos = 4,
+    /// KB-5: Capability — skills registry, blueprints, "how"
+    Techne = 5,
+    /// KB-6: Guardrails — security, audit, "should"
+    Ethos = 6,
+    /// KB-7: Affective — user preferences, "who" and vibe
+    Kardia = 7,
+    /// KB-8: Execution — physical interface, side effects, buffer
+    Soma = 8,
+    /// KB-9: Shadow (The Vault) — AES-256-GCM encrypted emotional data
+    Shadow = 9,
+}
+
+/// The Shadow slot ID constant for convenience.
+pub const SHADOW_SLOT_ID: u8 = 9;
+
+impl KbType {
+    /// Returns the slot ID (1-9) for this KB type.
+    #[inline]
+    pub fn slot_id(&self) -> u8 {
+        *self as u8
+    }
+
+    /// Returns the human-readable label for this KB type.
+    #[inline]
+    pub fn label(&self) -> &'static str {
+        SLOT_LABELS[self.slot_id() as usize - 1]
+    }
+
+    /// Returns the internal tree name for this KB type.
+    #[inline]
+    pub fn tree_name(&self) -> &'static str {
+        TREE_NAMES[self.slot_id() as usize - 1]
+    }
+
+    /// Returns `true` if this slot requires encryption (Shadow Vault).
+    #[inline]
+    pub fn is_encrypted(&self) -> bool {
+        matches!(self, Self::Shadow)
+    }
+
+    /// Creates a KbType from a slot ID (1-9). Returns None if out of range.
+    pub fn from_slot_id(slot_id: u8) -> Option<Self> {
+        match slot_id {
+            1 => Some(Self::Pneuma),
+            2 => Some(Self::Oikos),
+            3 => Some(Self::Logos),
+            4 => Some(Self::Chronos),
+            5 => Some(Self::Techne),
+            6 => Some(Self::Ethos),
+            7 => Some(Self::Kardia),
+            8 => Some(Self::Soma),
+            9 => Some(Self::Shadow),
+            _ => None,
+        }
+    }
+
+    /// Returns all KB types in order (Holistic Ontology), **excluding** Shadow.
+    /// Use `all_with_shadow()` to include the encrypted slot.
+    pub fn all() -> [Self; 8] {
+        [
+            Self::Pneuma,
+            Self::Oikos,
+            Self::Logos,
+            Self::Chronos,
+            Self::Techne,
+            Self::Ethos,
+            Self::Kardia,
+            Self::Soma,
+        ]
+    }
+
+    /// Returns all 9 KB types including the Shadow Vault.
+    pub fn all_with_shadow() -> [Self; 9] {
+        [
+            Self::Pneuma,
+            Self::Oikos,
+            Self::Logos,
+            Self::Chronos,
+            Self::Techne,
+            Self::Ethos,
+            Self::Kardia,
+            Self::Soma,
+            Self::Shadow,
+        ]
+    }
+}
+
+/// Standard record structure for KB entries.
+/// Designed for future vector/semantic search capabilities.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KbRecord {
+    /// Unique identifier for this record.
+    pub id: Uuid,
+    /// The main content/value stored in this record.
+    pub content: String,
+    /// Flexible metadata for tags, model_id, embeddings, etc.
+    /// Reserved keys: `tags`, `model_id`, `embedding_model`, `vector_dims`
+    pub metadata: serde_json::Value,
+    /// Optional semantic embedding vector for the record content.
+    ///
+    /// Intended primarily for KB-3 (Research) semantic search.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub embedding: Option<Vec<f32>>,
+    /// Unix timestamp (milliseconds) when this record was created/updated.
+    pub timestamp: i64,
+}
+
+/// Record stored in KB-5 for skill discovery (Skill Registry / KB-5).
+///
+/// This is a minimal, LLM-oriented manifest schema:
+/// - `slug`: stable identifier (e.g. "fs_workspace_analyzer")
+/// - `description`: natural language capability description
+/// - `schema`: JSON schema-ish object describing arguments
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SkillRecord {
+    pub slug: String,
+    pub description: String,
+    pub schema: serde_json::Value,
+}
+
+/// Episodic memory event for **KB_CHRONOS** (the Historian).
+///
+/// Every successful skill execution or significant update can create a timestamped
+/// "Memory Event" so the Agent can reason about past actions and self-correct.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventRecord {
+    /// Unix timestamp (milliseconds) when the event occurred.
+    pub timestamp_ms: i64,
+    /// Source cognitive domain (e.g. "Soma", "Pneuma", "Logos").
+    pub source_kb: String,
+    /// Skill or action name, if applicable.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skill_name: Option<String>,
+    /// Human-readable summary: what was done and why it matters.
+    pub reflection: String,
+    /// Optional outcome summary (e.g. "inserted key X", "returned 5 results").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<String>,
+}
+
+impl EventRecord {
+    /// Creates an event with the current timestamp.
+    pub fn now(source_kb: impl Into<String>, reflection: impl Into<String>) -> Self {
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        Self {
+            timestamp_ms,
+            source_kb: source_kb.into(),
+            skill_name: None,
+            reflection: reflection.into(),
+            outcome: None,
+        }
+    }
+
+    pub fn with_skill(mut self, name: impl Into<String>) -> Self {
+        self.skill_name = Some(name.into());
+        self
+    }
+
+    pub fn with_outcome(mut self, outcome: impl Into<String>) -> Self {
+        self.outcome = Some(outcome.into());
+        self
+    }
+
+    /// Serializes to JSON bytes for storage in Chronos.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap_or_default()
+    }
+
+    /// Deserializes from JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        serde_json::from_slice(bytes).ok()
+    }
+}
+
+/// Default key for the active safety policy in **KB_ETHOS**.
+pub const ETHOS_DEFAULT_POLICY_KEY: &str = "policy/default";
+
+/// Sovereign Config key in **KB_ETHOS** (Slot 6): MoE mode ("dense" | "sparse"). Persisted by gateway on toggle.
+pub const SOVEREIGN_MOE_MODE_KEY: &str = "sovereign/moe_mode";
+
+/// Guardrail policy record for **KB_ETHOS** (the Sage / Safe Operating Parameters).
+///
+/// Consulted before executing skills to ensure actions align with the 2026 mission.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyRecord {
+    /// Skill names or action patterns that are always forbidden.
+    #[serde(default)]
+    pub forbidden_actions: Vec<String>,
+    /// Keywords that, if present in payload content, trigger block or approval.
+    /// E.g. "api_key", "secret", "password" — do not write these to the sandbox.
+    #[serde(default)]
+    pub sensitive_keywords: Vec<String>,
+    /// When true, actions that match sensitive_keywords are blocked (no automatic approval).
+    #[serde(default = "default_true")]
+    pub approval_required: bool,
+}
+
+/// Sovereign Identity captured at first boot (Initialization Handshake).
+/// Stored in KB-01 (Pneuma) under SOVEREIGN_IDENTITY_KEY so the SAO can address the user by name and domain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UserPersona {
+    /// The Sovereign's name (e.g. "Jamey").
+    pub sovereign_name: String,
+    /// Highest rank or title (e.g. "Coach").
+    pub highest_rank: String,
+    /// Operational domain (e.g. "21 Acres").
+    pub operational_domain: String,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+impl Default for PolicyRecord {
+    fn default() -> Self {
+        Self {
+            forbidden_actions: Vec::new(),
+            sensitive_keywords: vec![
+                "api_key".to_string(),
+                "apikey".to_string(),
+                "secret".to_string(),
+                "password".to_string(),
+                "token".to_string(),
+                "credentials".to_string(),
+            ],
+            approval_required: true,
+        }
+    }
+}
+
+impl PolicyRecord {
+    /// Serializes to JSON bytes for storage in Ethos.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap_or_default()
+    }
+
+    /// Deserializes from JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        serde_json::from_slice(bytes).ok()
+    }
+
+    /// Returns true if the intended action is allowed; false if it violates policy.
+    /// `content_for_scan` is the string to check for sensitive keywords (e.g. payload content).
+    pub fn allows(&self, skill_name: &str, content_for_scan: &str) -> AlignmentResult {
+        let skill_lower = skill_name.to_lowercase();
+        for forbidden in &self.forbidden_actions {
+            if skill_lower.contains(&forbidden.to_lowercase()) {
+                return AlignmentResult::Fail {
+                    reason: format!("Skill '{}' is forbidden by policy", skill_name),
+                };
+            }
+        }
+        let content_lower = content_for_scan.to_lowercase();
+        for kw in &self.sensitive_keywords {
+            if content_lower.contains(&kw.to_lowercase()) && self.approval_required {
+                return AlignmentResult::Fail {
+                    reason: format!(
+                        "Content contains sensitive keyword '{}'; policy requires approval",
+                        kw
+                    ),
+                };
+            }
+        }
+        AlignmentResult::Pass
+    }
+}
+
+/// Result of an Ethos alignment check.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AlignmentResult {
+    Pass,
+    Fail { reason: String },
+}
+
+/// Key for relation records in **KB_KARDIA**. Full key: `relation/{owner_agent_id}/{target_id}`.
+/// In multi-agent mode, each agent has its own view of relations (to users and other agents).
+pub fn kardia_relation_key(owner_agent_id: &str, target_id: &str) -> String {
+    let owner = if owner_agent_id.is_empty() {
+        "default"
+    } else {
+        owner_agent_id
+    };
+    format!("relation/{}/{}", owner, target_id)
+}
+
+/// Inter-agent message stored in **KB_SOMA** inbox (`inbox/{target_agent_id}/{key}`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentMessage {
+    pub id: String,
+    pub from_agent_id: String,
+    pub target_agent_id: String,
+    pub payload: serde_json::Value,
+    pub timestamp_ms: i64,
+    /// Heartbeat inbox acknowledgment flag.
+    ///
+    /// When true, the Heartbeat should skip this message to avoid repeated auto-replies.
+    /// Defaults to false for backwards compatibility with older records.
+    #[serde(default)]
+    pub is_processed: bool,
+}
+
+impl AgentMessage {
+    pub fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap_or_default()
+    }
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        serde_json::from_slice(bytes).ok()
+    }
+}
+
+/// Relationship/social record for **KB_KARDIA** (the Heart).
+///
+/// Stores interaction sentiment, communication style, and trust so the agent
+/// can adapt its voice (Pneuma) based on the user (Kardia).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RelationRecord {
+    /// User or tenant identifier.
+    pub user_id: String,
+    /// Trust/rapport score in [0.0, 1.0]. Optional for backward compatibility.
+    #[serde(default = "default_trust")]
+    pub trust_score: f32,
+    /// Detected or preferred communication style (e.g. formal, witty, urgent, casual).
+    #[serde(default)]
+    pub communication_style: String,
+    /// Last inferred sentiment (e.g. frustrated, neutral, positive, angry).
+    #[serde(default)]
+    pub last_sentiment: String,
+    /// Unix timestamp (ms) of last update.
+    #[serde(default)]
+    pub last_updated_ms: i64,
+}
+
+fn default_trust() -> f32 {
+    0.5
+}
+
+impl RelationRecord {
+    pub fn new(user_id: impl Into<String>) -> Self {
+        let user_id = user_id.into();
+        let last_updated_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        Self {
+            user_id: user_id.clone(),
+            trust_score: 0.5,
+            communication_style: String::new(),
+            last_sentiment: String::new(),
+            last_updated_ms,
+        }
+    }
+
+    pub fn with_trust_score(mut self, score: f32) -> Self {
+        self.trust_score = score.clamp(0.0, 1.0);
+        self
+    }
+
+    pub fn with_communication_style(mut self, style: impl Into<String>) -> Self {
+        self.communication_style = style.into();
+        self
+    }
+
+    pub fn with_sentiment(mut self, sentiment: impl Into<String>) -> Self {
+        self.last_sentiment = sentiment.into();
+        self.last_updated_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        self
+    }
+
+    pub fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap_or_default()
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        serde_json::from_slice(bytes).ok()
+    }
+
+    /// One-line context string for injection into LLM prompts.
+    pub fn prompt_context(&self) -> String {
+        let mut parts = Vec::new();
+        if !self.last_sentiment.is_empty() {
+            parts.push(format!("User sentiment: {}", self.last_sentiment));
+        }
+        if !self.communication_style.is_empty() {
+            parts.push(format!("Communication style: {}", self.communication_style));
+        }
+        if parts.is_empty() {
+            return String::new();
+        }
+        format!("[Relationship context: {}. Adjust your tone accordingly.]\n\n", parts.join(". "))
+    }
+}
+
+impl KbRecord {
+    /// Creates a new KbRecord with the given content.
+    pub fn new(content: impl Into<String>) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            content: content.into(),
+            metadata: serde_json::json!({}),
+            embedding: None,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+        }
+    }
+
+    /// Creates a new KbRecord with content and metadata.
+    pub fn with_metadata(content: impl Into<String>, metadata: serde_json::Value) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            content: content.into(),
+            metadata,
+            embedding: None,
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+        }
+    }
+
+    /// Creates a new KbRecord with content, metadata, and an embedding vector.
+    pub fn with_embedding(
+        content: impl Into<String>,
+        metadata: serde_json::Value,
+        embedding: Vec<f32>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            content: content.into(),
+            metadata,
+            embedding: Some(embedding),
+            timestamp: std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis() as i64)
+                .unwrap_or(0),
+        }
+    }
+
+    /// Serializes this record to JSON bytes for storage.
+    pub fn to_bytes(&self) -> Vec<u8> {
+        serde_json::to_vec(self).unwrap_or_default()
+    }
+
+    /// Deserializes a record from JSON bytes.
+    pub fn from_bytes(bytes: &[u8]) -> Option<Self> {
+        serde_json::from_slice(bytes).ok()
+    }
+}
+
+/// Returns the descriptive label for a slot (1..=9). Falls back to "Unknown" if out of range.
+#[inline]
+pub fn pagi_kb_slot_label(slot_id: u8) -> &'static str {
+    if (1..=9).contains(&slot_id) {
+        SLOT_LABELS[slot_id as usize - 1]
+    } else {
+        "Unknown"
+    }
+}
+
+/// SAO (Sovereign AGI Orchestrator) 8-layer conceptual mapping.
+/// Maps slot IDs to universal heuristics (domain-agnostic). Slot 9 (Shadow) has no SAO layer label.
+pub const SAO_LAYER_LABELS: [&str; 9] = [
+    "Archetype",            // KB-1 Pneuma: identity, mission
+    "Manipulation Library", // KB-2 Oikos: patterns (pity-plays, gaslighting, etc.)
+    "Domain Ledger",        // KB-3 Logos: where / context
+    "Legacy/Trauma",        // KB-4 Chronos: history, legacy malware
+    "Social Protocols",     // KB-5 Techne: how-to, protocols
+    "Strategic Goals",      // KB-6 Ethos: guardrails, goals
+    "Cultural/Env",         // KB-7 Kardia: who, preferences
+    "Absurdity Log",        // KB-8 Soma: system failures, disrespect log
+    "Shadow (Vault)",       // KB-9
+];
+
+/// Returns the SAO layer label for a slot (1..=9). Used for prompt context and logging.
+#[inline]
+pub fn sao_layer_label(slot_id: u8) -> &'static str {
+    if (1..=9).contains(&slot_id) {
+        SAO_LAYER_LABELS[slot_id as usize - 1]
+    } else {
+        "Unknown"
+    }
+}
+
+/// Store with 9 Sled trees (8 standard + 1 encrypted Shadow), one per knowledge base slot.
+/// Provides the L2 Memory layer for the PAGI Orchestrator.
+///
+/// **Slot 9 (Shadow)** is special: all data written to it is automatically encrypted
+/// via AES-256-GCM using the `SecretVault`. If no master key is provided, Slot 9
+/// remains locked and all operations on it return errors.
+pub struct KnowledgeStore {
+    db: Db,
+    /// The Secret Vault for Slot 9 (Shadow_KB). Initialized from `PAGI_SHADOW_KEY` env var.
+    vault: SecretVault,
+}
+
+impl KnowledgeStore {
+    /// Opens or creates the knowledge DB at `./data/pagi_knowledge`.
+    /// The Shadow Vault is initialized from the `PAGI_SHADOW_KEY` environment variable.
+    pub fn new() -> Result<Self, sled::Error> {
+        Self::open_path(DEFAULT_PATH)
+    }
+
+    /// Opens or creates the knowledge DB at the given path.
+    /// The Shadow Vault is initialized from the `PAGI_SHADOW_KEY` environment variable.
+    pub fn open_path<P: AsRef<Path>>(path: P) -> Result<Self, sled::Error> {
+        let db = sled::open(path)?;
+        let vault = SecretVault::from_env();
+        Ok(Self { db, vault })
+    }
+
+    /// Opens or creates the knowledge DB with an explicit master key for the Shadow Vault.
+    /// Pass `None` to create a store with a locked vault.
+    pub fn open_with_key<P: AsRef<Path>>(path: P, master_key: Option<&[u8; 32]>) -> Result<Self, sled::Error> {
+        let db = sled::open(path)?;
+        let vault = SecretVault::new(master_key);
+        Ok(Self { db, vault })
+    }
+
+    /// Returns a reference to the Shadow Vault for direct vault operations.
+    pub fn vault(&self) -> &SecretVault {
+        &self.vault
+    }
+
+    /// Returns `true` if the Shadow Vault (Slot 9) is unlocked and accessible.
+    pub fn is_shadow_unlocked(&self) -> bool {
+        self.vault.is_unlocked()
+    }
+
+    fn tree_name(slot_id: u8) -> &'static str {
+        if (1..=9).contains(&slot_id) {
+            TREE_NAMES[slot_id as usize - 1]
+        } else {
+            TREE_NAMES[0]
+        }
+    }
+
+    /// Returns the value at `key` in the tree for `slot_id` (1–9).
+    ///
+    /// **Slot 9 (Shadow):** Returns the raw encrypted bytes. Use `get_shadow_anchor()`
+    /// or `get_shadow_decrypted()` for automatic decryption.
+    pub fn get(&self, slot_id: u8, key: &str) -> Result<Option<Vec<u8>>, sled::Error> {
+        let tree = self.db.open_tree(Self::tree_name(slot_id))?;
+        let v = tree.get(key.as_bytes())?;
+        Ok(v.map(|iv| iv.to_vec()))
+    }
+
+    /// Inserts `value` at `key` in the tree for `slot_id` (1–9).
+    ///
+    /// **Slot 9 (Shadow):** Data is automatically encrypted via AES-256-GCM before storage.
+    /// If the Shadow Vault is locked, returns an error. Use `insert_shadow_anchor()` for
+    /// typed anchor storage.
+    ///
+    /// Logs the write operation to the tracing system.
+    pub fn insert(
+        &self,
+        slot_id: u8,
+        key: &str,
+        value: &[u8],
+    ) -> Result<Option<Vec<u8>>, sled::Error> {
+        // Slot 9 (Shadow): auto-encrypt before writing
+        let effective_value: std::borrow::Cow<'_, [u8]> = if slot_id == SHADOW_SLOT_ID {
+            match self.vault.encrypt_blob(value) {
+                Ok(encrypted) => std::borrow::Cow::Owned(encrypted),
+                Err(VaultError::Locked) => {
+                    tracing::warn!(
+                        target: "pagi::vault",
+                        key = key,
+                        "Slot 9 (Shadow) write REJECTED — vault is locked (no master key)"
+                    );
+                    return Err(sled::Error::Unsupported(
+                        "Shadow Vault is locked: provide PAGI_SHADOW_KEY to enable Slot 9".into(),
+                    ));
+                }
+                Err(e) => {
+                    tracing::error!(
+                        target: "pagi::vault",
+                        key = key,
+                        error = %e,
+                        "Slot 9 (Shadow) encryption failed"
+                    );
+                    return Err(sled::Error::Unsupported(format!("Shadow encryption error: {}", e).into()));
+                }
+            }
+        } else {
+            std::borrow::Cow::Borrowed(value)
+        };
+
+        let tree_name = Self::tree_name(slot_id);
+        let tree = self.db.open_tree(tree_name)?;
+        let prev = tree.insert(key.as_bytes(), effective_value.as_ref())?;
+        
+        // Log KB write for observability (never log Shadow content)
+        let kb_label = pagi_kb_slot_label(slot_id);
+        let is_update = prev.is_some();
+        if slot_id == SHADOW_SLOT_ID {
+            tracing::info!(
+                target: "pagi::vault",
+                kb_slot = slot_id,
+                kb_name = kb_label,
+                key = key,
+                encrypted_bytes = effective_value.len(),
+                action = if is_update { "UPDATE" } else { "INSERT" },
+                "KB-9 [Shadow] {} key '{}' ({} encrypted bytes) 🔐",
+                if is_update { "updated" } else { "inserted" },
+                key,
+                effective_value.len()
+            );
+        } else {
+            tracing::info!(
+                target: "pagi::knowledge",
+                kb_slot = slot_id,
+                kb_name = kb_label,
+                key = key,
+                bytes = value.len(),
+                action = if is_update { "UPDATE" } else { "INSERT" },
+                "KB-{} [{}] {} key '{}' ({} bytes)",
+                slot_id,
+                kb_label,
+                if is_update { "updated" } else { "inserted" },
+                key,
+                value.len()
+            );
+        }
+        
+        Ok(prev.map(|iv| iv.to_vec()))
+    }
+
+    /// Inserts a KbRecord at the specified key in the tree for `slot_id` (1–8).
+    /// This is the preferred method for storing structured records.
+    pub fn insert_record(
+        &self,
+        slot_id: u8,
+        key: &str,
+        record: &KbRecord,
+    ) -> Result<Option<Vec<u8>>, sled::Error> {
+        self.insert(slot_id, key, &record.to_bytes())
+    }
+
+    /// Retrieves a KbRecord from the specified key in the tree for `slot_id` (1–8).
+    pub fn get_record(&self, slot_id: u8, key: &str) -> Result<Option<KbRecord>, sled::Error> {
+        let bytes = self.get(slot_id, key)?;
+        Ok(bytes.and_then(|b| KbRecord::from_bytes(&b)))
+    }
+
+    /// Removes the key in the tree for `slot_id` (1–8). Returns the previous value if present.
+    /// Logs the removal operation to the tracing system.
+    pub fn remove(&self, slot_id: u8, key: &str) -> Result<Option<Vec<u8>>, sled::Error> {
+        let tree = self.db.open_tree(Self::tree_name(slot_id))?;
+        let prev = tree.remove(key.as_bytes())?;
+        
+        if prev.is_some() {
+            let kb_label = pagi_kb_slot_label(slot_id);
+            tracing::info!(
+                target: "pagi::knowledge",
+                kb_slot = slot_id,
+                kb_name = kb_label,
+                key = key,
+                action = "REMOVE",
+                "KB-{} [{}] removed key '{}'",
+                slot_id,
+                kb_label,
+                key
+            );
+        }
+        
+        Ok(prev.map(|iv| iv.to_vec()))
+    }
+
+    /// Returns all keys in the tree for `slot_id` (1–8). Order is not guaranteed.
+    pub fn scan_keys(&self, slot_id: u8) -> Result<Vec<String>, sled::Error> {
+        let tree = self.db.open_tree(Self::tree_name(slot_id))?;
+        let keys: Vec<String> = tree
+            .iter()
+            .keys()
+            .filter_map(|k| k.ok())
+            .filter_map(|k| String::from_utf8(k.to_vec()).ok())
+            .collect();
+        Ok(keys)
+    }
+
+    /// Returns all key/value pairs in the tree for `slot_id` (1–8).
+    ///
+    /// This is useful for implementing higher-level search (including semantic search)
+    /// without exposing the underlying sled `Tree`.
+    pub fn scan_kv(&self, slot_id: u8) -> Result<Vec<(String, Vec<u8>)>, sled::Error> {
+        let tree = self.db.open_tree(Self::tree_name(slot_id))?;
+        let mut out = Vec::new();
+        for item in tree.iter() {
+            let (k, v) = item?;
+            let key = String::from_utf8(k.to_vec()).unwrap_or_default();
+            out.push((key, v.to_vec()));
+        }
+        Ok(out)
+    }
+
+    /// Returns all successfully-deserialized [`KbRecord`](crates/pagi-core/src/knowledge/store.rs:119)
+    /// values from the given slot.
+    pub fn scan_records(&self, slot_id: u8) -> Result<Vec<(String, KbRecord)>, sled::Error> {
+        let kv = self.scan_kv(slot_id)?;
+        let mut out = Vec::new();
+        for (k, bytes) in kv {
+            if let Some(rec) = KbRecord::from_bytes(&bytes) {
+                out.push((k, rec));
+            }
+        }
+        Ok(out)
+    }
+
+    /// Returns the number of entries in the tree for `slot_id` (1–8).
+    pub fn count(&self, slot_id: u8) -> Result<usize, sled::Error> {
+        let tree = self.db.open_tree(Self::tree_name(slot_id))?;
+        Ok(tree.len())
+    }
+
+    /// Returns status information for all 9 KB slots (including Shadow Vault).
+    pub fn get_all_status(&self) -> Vec<KbStatus> {
+        KbType::all_with_shadow()
+            .iter()
+            .map(|kb_type| {
+                let slot_id = kb_type.slot_id();
+                let tree_result = self.db.open_tree(kb_type.tree_name());
+                match tree_result {
+                    Ok(tree) => {
+                        let mut status = KbStatus {
+                            slot_id,
+                            name: kb_type.label().to_string(),
+                            tree_name: kb_type.tree_name().to_string(),
+                            connected: true,
+                            entry_count: tree.len(),
+                            error: None,
+                        };
+                        // Shadow slot: indicate lock status
+                        if kb_type.is_encrypted() && !self.vault.is_unlocked() {
+                            status.error = Some("LOCKED (no master key)".to_string());
+                        }
+                        status
+                    },
+                    Err(e) => KbStatus {
+                        slot_id,
+                        name: kb_type.label().to_string(),
+                        tree_name: kb_type.tree_name().to_string(),
+                        connected: false,
+                        entry_count: 0,
+                        error: Some(e.to_string()),
+                    },
+                }
+            })
+            .collect()
+    }
+
+    /// Initializes the 8 Sled trees by inserting a `metadata` key in each tree describing its purpose.
+    /// Safe to call multiple times (overwrites existing metadata). Call after opening the store (e.g. at startup).
+    pub fn pagi_init_kb_metadata(&self) -> Result<(), sled::Error> {
+        tracing::info!(target: "pagi::knowledge", "Initializing 8 Knowledge Base trees (L2 Memory)...");
+        
+        for kb_type in KbType::all() {
+            let slot_id = kb_type.slot_id();
+            let label = kb_type.label();
+            let tree_name = kb_type.tree_name();
+            
+            let metadata = serde_json::json!({
+                "slot_id": slot_id,
+                "name": label,
+                "tree_name": tree_name,
+                "purpose": label,
+                "kb_type": format!("{:?}", kb_type),
+                "initialized_at": std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_millis() as i64)
+                    .unwrap_or(0),
+                "vector_metadata": {
+                    "embedding_model": null,
+                    "vector_dims": null,
+                    "semantic_search_enabled": false
+                }
+            });
+            let bytes = metadata.to_string().into_bytes();
+            
+            // Use direct tree insert to avoid double-logging during init
+            let tree = self.db.open_tree(tree_name)?;
+            tree.insert("__kb_metadata__", bytes.as_slice())?;
+            
+            tracing::info!(
+                target: "pagi::knowledge",
+                kb_slot = slot_id,
+                kb_name = label,
+                tree = tree_name,
+                "KB-{} [{}] initialized (tree: {})",
+                slot_id,
+                label,
+                tree_name
+            );
+        }
+        
+        tracing::info!(target: "pagi::knowledge", "✓ All 8 Knowledge Bases initialized successfully");
+        Ok(())
+    }
+
+    /// **Reflexion layer:** Logs a skill failure to Chronos (key prefix `failure/`) for self-correction.
+    /// Call this when a skill returns `Err` so the meta-orchestrator can monitor failure rates and attempt recovery.
+    pub fn log_skill_failure(
+        &self,
+        agent_id: &str,
+        skill_name: &str,
+        error_message: &str,
+        goal_summary: Option<&serde_json::Value>,
+    ) -> Result<(), sled::Error> {
+        let slot_id = KbType::Chronos.slot_id();
+        let agent_prefix = if agent_id.is_empty() { "default" } else { agent_id };
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let key = format!(
+            "failure/{}/{}_{}",
+            agent_prefix,
+            ts,
+            Uuid::new_v4().simple()
+        );
+        let reflection = format!(
+            "Skill '{}' failed: {}. Reflexion: log for self-correction.",
+            skill_name, error_message
+        );
+        let outcome = goal_summary
+            .and_then(|v| serde_json::to_string(v).ok())
+            .unwrap_or_else(|| "unknown goal".to_string());
+        let event = EventRecord {
+            timestamp_ms: ts,
+            source_kb: "Failures".to_string(),
+            skill_name: Some(skill_name.to_string()),
+            reflection,
+            outcome: Some(outcome),
+        };
+        self.insert(slot_id, &key, &event.to_bytes())?;
+        tracing::warn!(
+            target: "pagi::reflexion",
+            skill = %skill_name,
+            error = %error_message,
+            "Reflexion: failure logged to Chronos (Failures)"
+        );
+        Ok(())
+    }
+
+    /// Appends an episodic memory event to **KB_CHRONOS** (the Historian).
+    ///
+    /// Key format: `event/{agent_id}/{timestamp_ms}_{uuid}` so each agent has its own memory stream.
+    /// Use `agent_id` = `"default"` for single-agent mode.
+    pub fn append_chronos_event(
+        &self,
+        agent_id: &str,
+        event: &EventRecord,
+    ) -> Result<(), sled::Error> {
+        let slot_id = KbType::Chronos.slot_id();
+        let agent_prefix = if agent_id.is_empty() { "default" } else { agent_id };
+        let key = format!(
+            "event/{}/{}_{}",
+            agent_prefix,
+            event.timestamp_ms,
+            Uuid::new_v4().simple()
+        );
+        self.insert(slot_id, &key, &event.to_bytes())?;
+        tracing::debug!(
+            target: "pagi::chronos",
+            agent_id = %agent_prefix,
+            key = %key,
+            source = %event.source_kb,
+            "Chronos: episodic event recorded"
+        );
+        Ok(())
+    }
+
+    /// Builds a short "local context" string from the 8 KBs for the OpenRouter Bridge.
+    /// **Local priority:** Call this before sending a plan request so the Bridge reasons over grounded data.
+    /// Includes recent Chronos events and Oikos governance summary when available.
+    pub fn build_local_context_for_bridge(&self, agent_id: &str, chronos_limit: usize) -> String {
+        let mut parts = Vec::new();
+        if let Ok(events) = self.get_recent_chronos_events(agent_id, chronos_limit) {
+            if !events.is_empty() {
+                parts.push("Recent events (Chronos):".to_string());
+                for e in events.iter().take(5) {
+                    parts.push(format!("- {}: {}", e.source_kb, e.reflection));
+                }
+            }
+        }
+        if let Some(summary) = self.get_governance_summary() {
+            parts.push(format!("Oikos: {}", summary));
+        }
+        if parts.is_empty() {
+            return "No local context yet.".to_string();
+        }
+        parts.join("\n")
+    }
+
+    /// Returns the most recent episodic events from **KB_CHRONOS** for the given agent, newest first.
+    ///
+    /// Used by the "recall_past_actions" skill so the Agent can answer "What did you do recently?"
+    pub fn get_recent_chronos_events(
+        &self,
+        agent_id: &str,
+        limit: usize,
+    ) -> Result<Vec<EventRecord>, sled::Error> {
+        let slot_id = KbType::Chronos.slot_id();
+        let agent_prefix = if agent_id.is_empty() { "default" } else { agent_id };
+        let prefix = format!("event/{}", agent_prefix);
+        let mut events: Vec<(i64, EventRecord)> = self
+            .scan_kv(slot_id)?
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .filter_map(|(_, bytes)| EventRecord::from_bytes(&bytes).map(|e| (e.timestamp_ms, e)))
+            .collect();
+        events.sort_by(|a, b| b.0.cmp(&a.0));
+        Ok(events.into_iter().take(limit).map(|(_, e)| e).collect())
+    }
+
+    /// Returns the most recent conversation turns from **KB-04 (Chronos)** for the given agent.
+    ///
+    /// Keys must be prefixed with `conversation/{agent_id}/` (e.g. `conversation/jamey/1739123456789`).
+    /// Values can be plain UTF-8 or JSON `{ "role": "user"|"assistant", "content": "..." }`.
+    /// Used to inject recent chat context into the system prompt (Memory Bridge).
+    pub fn get_recent_conversation(&self, agent_id: &str, limit: usize) -> String {
+        let slot_id = KbType::Chronos.slot_id();
+        let agent = if agent_id.is_empty() { "default" } else { agent_id };
+        let prefix = format!("{}{}/", CHRONOS_CONVERSATION_PREFIX, agent);
+        let mut entries: Vec<(String, Vec<u8>)> = match self.scan_kv(slot_id) {
+            Ok(kv) => kv
+                .into_iter()
+                .filter(|(k, _)| k.starts_with(&prefix))
+                .collect(),
+            Err(_) => return String::new(),
+        };
+        entries.sort_by(|a, b| b.0.cmp(&a.0));
+        let mut out = Vec::new();
+        for (_, bytes) in entries.into_iter().take(limit) {
+            let s = match std::str::from_utf8(&bytes) {
+                Ok(x) => x,
+                Err(_) => continue,
+            };
+            if let Ok(j) = serde_json::from_str::<serde_json::Value>(s) {
+                if let (Some(role), Some(content)) = (
+                    j.get("role").and_then(|x| x.as_str()),
+                    j.get("content").and_then(|x| x.as_str()),
+                ) {
+                    out.push(format!("{}: {}", role, content));
+                } else {
+                    out.push(s.to_string());
+                }
+            } else {
+                out.push(s.to_string());
+            }
+        }
+        out.join("\n")
+    }
+
+    /// Returns the MoE mode from Sovereign Config (KB_ETHOS key sovereign/moe_mode). "dense" | "sparse".
+    pub fn get_sovereign_moe_mode(&self) -> Option<String> {
+        let slot_id = KbType::Ethos.slot_id();
+        self.get(slot_id, SOVEREIGN_MOE_MODE_KEY)
+            .ok()
+            .flatten()
+            .and_then(|b| String::from_utf8(b).ok())
+            .map(|s| s.trim().to_lowercase())
+            .filter(|s| s == "dense" || s == "sparse")
+    }
+
+    /// Persists MoE mode to Sovereign Config (KB_ETHOS). Call when the UI toggles MoE; then sync orchestrator.
+    pub fn set_sovereign_moe_mode(&self, mode: &str) -> Result<(), sled::Error> {
+        let slot_id = KbType::Ethos.slot_id();
+        let value = if mode.trim().eq_ignore_ascii_case("sparse") {
+            b"sparse".to_vec()
+        } else {
+            b"dense".to_vec()
+        };
+        self.insert(slot_id, SOVEREIGN_MOE_MODE_KEY, &value)?;
+        Ok(())
+    }
+
+    /// Returns the active safety policy from **KB_ETHOS**, if present.
+    pub fn get_ethos_policy(&self) -> Option<PolicyRecord> {
+        let slot_id = KbType::Ethos.slot_id();
+        self.get(slot_id, ETHOS_DEFAULT_POLICY_KEY)
+            .ok()
+            .flatten()
+            .and_then(|b| PolicyRecord::from_bytes(&b))
+    }
+
+    /// Writes the active safety policy to **KB_ETHOS**.
+    pub fn set_ethos_policy(&self, policy: &PolicyRecord) -> Result<(), sled::Error> {
+        let slot_id = KbType::Ethos.slot_id();
+        self.insert(slot_id, ETHOS_DEFAULT_POLICY_KEY, &policy.to_bytes())?;
+        Ok(())
+    }
+
+    /// Returns the active philosophical policy from **KB_ETHOS**, if present.
+    /// Stored under key [`crate::ETHOS_POLICY_KEY`] (`ethos/current`).
+    pub fn get_ethos_philosophical_policy(&self) -> Option<crate::EthosPolicy> {
+        let slot_id = KbType::Ethos.slot_id();
+        self.get(slot_id, crate::ETHOS_POLICY_KEY)
+            .ok()
+            .flatten()
+            .and_then(|b| crate::EthosPolicy::from_bytes(&b))
+    }
+
+    /// Writes the philosophical policy to **KB_ETHOS** under `ethos/current`.
+    pub fn set_ethos_philosophical_policy(
+        &self,
+        policy: &crate::EthosPolicy,
+    ) -> Result<(), sled::Error> {
+        let slot_id = KbType::Ethos.slot_id();
+        self.insert(slot_id, crate::ETHOS_POLICY_KEY, &policy.to_bytes())?;
+        Ok(())
+    }
+
+    /// Returns the relation record from **KB_KARDIA** for (owner_agent_id, target_id).
+    /// Use owner_agent_id = "default" for single-agent mode.
+    pub fn get_kardia_relation(
+        &self,
+        owner_agent_id: &str,
+        target_id: &str,
+    ) -> Option<RelationRecord> {
+        let slot_id = KbType::Kardia.slot_id();
+        let key = kardia_relation_key(owner_agent_id, target_id);
+        self.get(slot_id, &key).ok().flatten().and_then(|b| RelationRecord::from_bytes(&b))
+    }
+
+    /// Writes the relation record to **KB_KARDIA** under (owner_agent_id, record.user_id).
+    pub fn set_kardia_relation(
+        &self,
+        owner_agent_id: &str,
+        record: &RelationRecord,
+    ) -> Result<(), sled::Error> {
+        let slot_id = KbType::Kardia.slot_id();
+        let key = kardia_relation_key(owner_agent_id, &record.user_id);
+        self.insert(slot_id, &key, &record.to_bytes())?;
+        Ok(())
+    }
+
+    /// Key for a person in the Relational Map: `people/{name_slug}`.
+    pub fn kardia_person_key(name_slug: &str) -> String {
+        format!("{}{}", KARDIA_PEOPLE_PREFIX, name_slug)
+    }
+
+    /// Returns a **PersonRecord** from the Relational Map (KB_KARDIA) by name slug.
+    pub fn get_person(&self, name_slug: &str) -> Option<PersonRecord> {
+        let slot_id = KbType::Kardia.slot_id();
+        let key = Self::kardia_person_key(name_slug);
+        self.get(slot_id, &key)
+            .ok()
+            .flatten()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+    }
+
+    /// Writes a **PersonRecord** to the Relational Map (KB_KARDIA) under `people/{name_slug}`.
+    pub fn set_person(&self, record: &PersonRecord) -> Result<(), sled::Error> {
+        let slot_id = KbType::Kardia.slot_id();
+        let slug = PersonRecord::name_slug(&record.name);
+        let key = Self::kardia_person_key(&slug);
+        let bytes = serde_json::to_vec(record).unwrap_or_default();
+        self.insert(slot_id, &key, &bytes)?;
+        Ok(())
+    }
+
+    /// Returns all **PersonRecord**s in the Relational Map (KB_KARDIA) with key prefix `people/`.
+    pub fn list_people(&self) -> Result<Vec<PersonRecord>, sled::Error> {
+        let slot_id = KbType::Kardia.slot_id();
+        let kv = self.scan_kv(slot_id)?;
+        let prefix = KARDIA_PEOPLE_PREFIX;
+        let mut out: Vec<PersonRecord> = kv
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(prefix))
+            .filter_map(|(_, bytes)| serde_json::from_slice(&bytes).ok())
+            .collect();
+        out.sort_by(|a, b| a.name.cmp(&b.name));
+        Ok(out)
+    }
+
+    /// Returns the **MentalState** (Emotional Context Layer) from **KB_KARDIA**.
+    /// Stored under a global key so the Cognitive Governor can modulate tone and demand.
+    pub fn get_mental_state(&self, _owner_agent_id: &str) -> MentalState {
+        let slot_id = KbType::Kardia.slot_id();
+        match self.get(slot_id, MENTAL_STATE_KEY) {
+            Ok(Some(bytes)) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            _ => MentalState::default(),
+        }
+    }
+
+    /// Writes the **MentalState** to **KB_KARDIA**. Used by JournalSkill and gateway.
+    pub fn set_mental_state(&self, _owner_agent_id: &str, state: &MentalState) -> Result<(), sled::Error> {
+        let slot_id = KbType::Kardia.slot_id();
+        let bytes = serde_json::to_vec(state).unwrap_or_default();
+        self.insert(slot_id, MENTAL_STATE_KEY, &bytes)?;
+        Ok(())
+    }
+
+    /// Key in **KB_SOMA** (Slot 8) where the current BiometricState is stored (BioGate).
+    pub const BIOMETRIC_STATE_KEY: &str = "biometric/current";
+
+    /// Returns the **BiometricState** (Physical Load) from **KB_SOMA** (Slot 8).
+    pub fn get_biometric_state(&self) -> BiometricState {
+        let slot_id = KbType::Soma.slot_id();
+        match self.get(slot_id, Self::BIOMETRIC_STATE_KEY) {
+            Ok(Some(bytes)) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            _ => BiometricState::default(),
+        }
+    }
+
+    /// Writes the **BiometricState** to **KB_SOMA** (Slot 8). Used by BioGateSync skill.
+    pub fn set_biometric_state(&self, state: &BiometricState) -> Result<(), sled::Error> {
+        let slot_id = KbType::Soma.slot_id();
+        let bytes = serde_json::to_vec(state).unwrap_or_default();
+        self.insert(slot_id, Self::BIOMETRIC_STATE_KEY, &bytes)?;
+        Ok(())
+    }
+
+    /// Key in **KB_SOMA** (Slot 8) where the current SomaState is stored (BioGate v2).
+    pub const SOMA_STATE_KEY: &str = "soma/current";
+
+    /// Returns the **SomaState** (BioGate health metrics) from **KB_SOMA** (Slot 8).
+    pub fn get_soma_state(&self) -> SomaState {
+        let slot_id = KbType::Soma.slot_id();
+        match self.get(slot_id, Self::SOMA_STATE_KEY) {
+            Ok(Some(bytes)) => serde_json::from_slice(&bytes).unwrap_or_default(),
+            _ => SomaState::default(),
+        }
+    }
+
+    /// Writes the **SomaState** to **KB_SOMA** (Slot 8). Used by BioGateSync skill.
+    pub fn set_soma_state(&self, state: &SomaState) -> Result<(), sled::Error> {
+        let slot_id = KbType::Soma.slot_id();
+        let bytes = serde_json::to_vec(state).unwrap_or_default();
+        self.insert(slot_id, Self::SOMA_STATE_KEY, &bytes)?;
+        Ok(())
+    }
+
+    /// Returns the **effective** MentalState for the Cognitive Governor: Kardia baseline
+    /// merged with Soma (BioGate) physical load.
+    ///
+    /// **Cross-layer reaction (BioGate v2 — SomaState):**
+    /// If `readiness_score < 50` **OR** `sleep_hours < 6.0`:
+    /// - `burnout_risk` is incremented by **+0.15**
+    /// - `grace_multiplier` is set to **1.6**
+    ///
+    /// **Legacy fallback (BiometricState):**
+    /// If `sleep_score < 60`, burnout_risk is increased by 0.2 and grace_multiplier set to 1.5.
+    pub fn get_effective_mental_state(&self, owner_agent_id: &str) -> MentalState {
+        let mut mental = self.get_mental_state(owner_agent_id);
+
+        // BioGate v2: SomaState cross-layer reaction (takes priority)
+        let soma = self.get_soma_state();
+        if soma.needs_biogate_adjustment() {
+            mental.burnout_risk = (mental.burnout_risk + SomaState::BURNOUT_RISK_INCREMENT).min(1.0);
+            mental.grace_multiplier = SomaState::GRACE_MULTIPLIER_OVERRIDE;
+        } else {
+            // Legacy fallback: BiometricState
+            let bio = self.get_biometric_state();
+            if bio.poor_sleep() {
+                mental.burnout_risk = (mental.burnout_risk + 0.2).min(1.0);
+                mental.grace_multiplier = 1.5;
+            }
+        }
+
+        mental.clamp();
+        mental
+    }
+
+    /// Pushes an inter-agent message to **KB_SOMA** (inbox for target agent).
+    /// Key: `inbox/{target_agent_id}/{timestamp_ms}_{uuid}`. Returns the message id.
+    pub fn push_agent_message(
+        &self,
+        from_agent_id: &str,
+        target_agent_id: &str,
+        payload: &serde_json::Value,
+    ) -> Result<String, sled::Error> {
+        let slot_id = KbType::Soma.slot_id();
+        let ts = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as i64)
+            .unwrap_or(0);
+        let id = Uuid::new_v4().simple().to_string();
+        let key = format!("inbox/{}/{}_{}", target_agent_id, ts, id);
+        let msg = AgentMessage {
+            id: id.clone(),
+            from_agent_id: from_agent_id.to_string(),
+            target_agent_id: target_agent_id.to_string(),
+            payload: payload.clone(),
+            timestamp_ms: ts,
+            is_processed: false,
+        };
+        self.insert(slot_id, &key, &msg.to_bytes())?;
+        Ok(id)
+    }
+
+    /// Returns the most recent messages for an agent from **KB_SOMA** inbox, newest first,
+    /// including the underlying inbox key.
+    ///
+    /// This is primarily used by the Heartbeat so it can mark messages as processed
+    /// without deleting them (preserving KB_SOMA history).
+    pub fn get_agent_messages_with_keys(
+        &self,
+        target_agent_id: &str,
+        limit: usize,
+    ) -> Result<Vec<(String, AgentMessage)>, sled::Error> {
+        let slot_id = KbType::Soma.slot_id();
+        let prefix = format!("inbox/{}/", target_agent_id);
+        let mut messages: Vec<(i64, String, AgentMessage)> = self
+            .scan_kv(slot_id)?
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .filter_map(|(k, bytes)| AgentMessage::from_bytes(&bytes).map(|m| (m.timestamp_ms, k, m)))
+            .collect();
+        messages.sort_by(|a, b| b.0.cmp(&a.0));
+        Ok(messages
+            .into_iter()
+            .take(limit)
+            .map(|(_ts, k, m)| (k, m))
+            .collect())
+    }
+
+    /// Returns the most recent messages for an agent from **KB_SOMA** inbox, newest first.
+    pub fn get_agent_messages(
+        &self,
+        target_agent_id: &str,
+        limit: usize,
+    ) -> Result<Vec<AgentMessage>, sled::Error> {
+        let slot_id = KbType::Soma.slot_id();
+        let prefix = format!("inbox/{}", target_agent_id);
+        let mut messages: Vec<(i64, AgentMessage)> = self
+            .scan_kv(slot_id)?
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(&prefix))
+            .filter_map(|(_, bytes)| AgentMessage::from_bytes(&bytes).map(|m| (m.timestamp_ms, m)))
+            .collect();
+        messages.sort_by(|a, b| b.0.cmp(&a.0));
+        Ok(messages.into_iter().take(limit).map(|(_, m)| m).collect())
+    }
+
+    /// Returns all skill manifests stored in KB-5 (Techne / Skills & Blueprints).
+    ///
+    /// Convention:
+    /// - KB slot: 5
+    /// - key prefix: `skills/`
+    /// - value: JSON-encoded [`SkillRecord`](crates/pagi-core/src/knowledge/store.rs:1)
+    pub fn get_skills(&self) -> Vec<SkillRecord> {
+        let slot_id = KbType::Techne.slot_id();
+        let tree = match self.db.open_tree(Self::tree_name(slot_id)) {
+            Ok(t) => t,
+            Err(_) => return Vec::new(),
+        };
+
+        let mut out = Vec::new();
+        for item in tree.iter() {
+            let (k, v) = match item {
+                Ok(kv) => kv,
+                Err(_) => continue,
+            };
+            let key = match String::from_utf8(k.to_vec()) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            if !key.starts_with("skills/") {
+                continue;
+            }
+            let bytes = v.to_vec();
+            if let Ok(rec) = serde_json::from_slice::<SkillRecord>(&bytes) {
+                out.push(rec);
+            }
+        }
+
+        // Stable ordering for deterministic prompts
+        out.sort_by(|a, b| a.slug.cmp(&b.slug));
+        out
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Shadow Vault (Slot 9) — Encrypted Emotional Data
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Stores an `EmotionalAnchor` in Slot 9 (Shadow), encrypted via AES-256-GCM.
+    ///
+    /// Key convention: `anchor/{anchor_type}` or `anchor/{label}`.
+    /// Returns `Err` if the vault is locked.
+    pub fn insert_shadow_anchor(
+        &self,
+        key: &str,
+        anchor: &EmotionalAnchor,
+    ) -> Result<(), sled::Error> {
+        let bytes = anchor.to_bytes();
+        self.insert(SHADOW_SLOT_ID, key, &bytes)?;
+        Ok(())
+    }
+
+    /// Retrieves and decrypts an `EmotionalAnchor` from Slot 9 (Shadow).
+    ///
+    /// Returns `Ok(None)` if the key doesn't exist.
+    /// Returns `Err` if the vault is locked or decryption fails.
+    pub fn get_shadow_anchor(&self, key: &str) -> Result<Option<EmotionalAnchor>, String> {
+        let encrypted = match self.get(SHADOW_SLOT_ID, key) {
+            Ok(Some(data)) => data,
+            Ok(None) => return Ok(None),
+            Err(e) => return Err(format!("sled error: {}", e)),
+        };
+        match self.vault.decrypt_anchor(&encrypted) {
+            Ok(anchor) => Ok(Some(anchor)),
+            Err(VaultError::Locked) => Err("Shadow Vault is locked".to_string()),
+            Err(e) => Err(format!("decrypt error: {}", e)),
+        }
+    }
+
+    /// Retrieves and decrypts raw bytes from Slot 9 (Shadow) as a UTF-8 string.
+    ///
+    /// Returns `Ok(None)` if the key doesn't exist.
+    /// Returns `Err` if the vault is locked or decryption fails.
+    pub fn get_shadow_decrypted(&self, key: &str) -> Result<Option<String>, String> {
+        let encrypted = match self.get(SHADOW_SLOT_ID, key) {
+            Ok(Some(data)) => data,
+            Ok(None) => return Ok(None),
+            Err(e) => return Err(format!("sled error: {}", e)),
+        };
+        match self.vault.decrypt_str(&encrypted) {
+            Ok(s) => Ok(Some(s)),
+            Err(VaultError::Locked) => Err("Shadow Vault is locked".to_string()),
+            Err(e) => Err(format!("decrypt error: {}", e)),
+        }
+    }
+
+    /// Returns all active `EmotionalAnchor`s from Slot 9 (Shadow).
+    ///
+    /// Scans all keys with prefix `anchor/` and decrypts each one.
+    /// Silently skips entries that fail to decrypt (e.g. corrupted).
+    /// Returns an empty vec if the vault is locked.
+    pub fn get_active_shadow_anchors(&self) -> Vec<(String, EmotionalAnchor)> {
+        if !self.vault.is_unlocked() {
+            return Vec::new();
+        }
+        let tree = match self.db.open_tree(Self::tree_name(SHADOW_SLOT_ID)) {
+            Ok(t) => t,
+            Err(_) => return Vec::new(),
+        };
+        let mut anchors = Vec::new();
+        for item in tree.iter() {
+            let (k, v) = match item {
+                Ok(kv) => kv,
+                Err(_) => continue,
+            };
+            let key = match String::from_utf8(k.to_vec()) {
+                Ok(s) => s,
+                Err(_) => continue,
+            };
+            if !key.starts_with("anchor/") {
+                continue;
+            }
+            let encrypted = v.to_vec();
+            if let Ok(anchor) = self.vault.decrypt_anchor(&encrypted) {
+                if anchor.active {
+                    anchors.push((key, anchor));
+                }
+            }
+        }
+        anchors
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Dynamic Task Governance (Oikos) — Slot 2 task management
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /// Stores a [`GovernedTask`] in **KB_OIKOS** (Slot 2) under `oikos/tasks/{task_id}`.
+    pub fn set_governed_task(&self, task: &crate::GovernedTask) -> Result<(), sled::Error> {
+        let slot_id = KbType::Oikos.slot_id();
+        let key = format!("{}{}", crate::OIKOS_TASK_PREFIX, task.task_id);
+        self.insert(slot_id, &key, &task.to_bytes())?;
+        Ok(())
+    }
+
+    /// Retrieves a [`GovernedTask`] from **KB_OIKOS** (Slot 2) by task_id.
+    pub fn get_governed_task(&self, task_id: &str) -> Option<crate::GovernedTask> {
+        let slot_id = KbType::Oikos.slot_id();
+        let key = format!("{}{}", crate::OIKOS_TASK_PREFIX, task_id);
+        self.get(slot_id, &key)
+            .ok()
+            .flatten()
+            .and_then(|b| crate::GovernedTask::from_bytes(&b))
+    }
+
+    /// Returns all governed tasks from **KB_OIKOS** (Slot 2), sorted by effective priority descending.
+    pub fn list_governed_tasks(&self) -> Result<Vec<crate::GovernedTask>, sled::Error> {
+        let slot_id = KbType::Oikos.slot_id();
+        let kv = self.scan_kv(slot_id)?;
+        let prefix = crate::OIKOS_TASK_PREFIX;
+        let mut tasks: Vec<crate::GovernedTask> = kv
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(prefix))
+            .filter_map(|(_, bytes)| crate::GovernedTask::from_bytes(&bytes))
+            .collect();
+        tasks.sort_by(|a, b| {
+            b.effective_priority
+                .partial_cmp(&a.effective_priority)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        Ok(tasks)
+    }
+
+    /// Removes a governed task from **KB_OIKOS** (Slot 2) by task_id.
+    pub fn remove_governed_task(&self, task_id: &str) -> Result<bool, sled::Error> {
+        let slot_id = KbType::Oikos.slot_id();
+        let key = format!("{}{}", crate::OIKOS_TASK_PREFIX, task_id);
+        let prev = self.remove(slot_id, &key)?;
+        Ok(prev.is_some())
+    }
+
+    /// Creates a [`TaskGovernor`] from the current cross-layer state (Soma + Kardia + Ethos).
+    ///
+    /// This is the primary entry point for task governance: it reads the current biological,
+    /// emotional, and philosophical state from the knowledge store and returns a governor
+    /// that can evaluate tasks.
+    pub fn create_task_governor(&self, agent_id: &str) -> crate::TaskGovernor {
+        let soma = self.get_soma_state();
+        let mental = self.get_effective_mental_state(agent_id);
+        let ethos = self.get_ethos_philosophical_policy();
+        crate::TaskGovernor::new(soma, mental, ethos)
+    }
+
+    /// Evaluates all governed tasks using the current cross-layer state and persists the results.
+    ///
+    /// Returns the evaluated tasks sorted by effective priority.
+    pub fn evaluate_and_persist_tasks(&self, agent_id: &str) -> Result<Vec<crate::GovernedTask>, sled::Error> {
+        let governor = self.create_task_governor(agent_id);
+        let tasks = self.list_governed_tasks()?;
+        let evaluated = governor.evaluate_batch(&tasks);
+
+        // Persist each evaluated task back to Oikos
+        for task in &evaluated {
+            self.set_governed_task(task)?;
+        }
+
+        // Persist governance summary
+        let summary = governor.governance_summary(&tasks);
+        let slot_id = KbType::Oikos.slot_id();
+        self.insert(slot_id, crate::OIKOS_GOVERNANCE_SUMMARY_KEY, summary.as_bytes())?;
+
+        Ok(evaluated)
+    }
+
+    /// Returns the last persisted governance summary from **KB_OIKOS** (Slot 2), if present.
+    pub fn get_governance_summary(&self) -> Option<String> {
+        let slot_id = KbType::Oikos.slot_id();
+        self.get(slot_id, crate::OIKOS_GOVERNANCE_SUMMARY_KEY)
+            .ok()
+            .flatten()
+            .and_then(|b| String::from_utf8(b).ok())
+    }
+
+    /// **Compassionate Routing Helper:** Checks the Shadow_KB for active emotional anchors
+    /// and returns an optional system instruction to inject into the LLM prompt.
+    ///
+    /// This is the bridge between the encrypted Shadow_KB and the Cognitive Governor.
+    /// If any active anchor with `intensity > 0.5` is found, returns a supportive
+    /// system instruction. Never logs the anchor content.
+    pub fn check_mental_load(&self) -> Option<String> {
+        let anchors = self.get_active_shadow_anchors();
+        if anchors.is_empty() {
+            return None;
+        }
+
+        // Find the highest-intensity active anchor
+        let max_intensity = anchors
+            .iter()
+            .map(|(_, a)| a.intensity)
+            .fold(0.0_f32, f32::max);
+
+        if max_intensity > 0.5 {
+            let anchor_types: Vec<&str> = anchors
+                .iter()
+                .filter(|(_, a)| a.intensity > 0.5)
+                .map(|(_, a)| a.anchor_type.as_str())
+                .collect();
+
+            // Build a compassionate system instruction without revealing specifics
+            let instruction = format!(
+                "The user is currently handling heavy personal issues (detected anchors: {}). \
+                 Be supportive and prioritize cognitive ease over performance metrics. \
+                 Use a warm, patient tone. Avoid adding pressure or urgency.",
+                anchor_types.join(", ")
+            );
+            tracing::debug!(
+                target: "pagi::vault",
+                anchor_count = anchors.len(),
+                max_intensity = max_intensity,
+                "Shadow_KB: compassionate routing activated (mental load detected)"
+            );
+            Some(instruction)
+        } else {
+            None
+        }
+    }
+
+    /// Returns the full sovereign state for the dashboard and Live Status API.
+    /// Aggregates Soma, Ethos, Kardia (mental + people), Oikos (summary + tasks), Shadow lock, MoE mode, and 9-slot status.
+    pub fn get_full_sovereign_state(&self, agent_id: &str) -> SovereignState {
+        let kb_statuses = self.get_all_status();
+        let soma = self.get_soma_state();
+        let bio_gate_active = soma.needs_biogate_adjustment();
+        let ethos = self.get_ethos_philosophical_policy();
+        let mental = self.get_effective_mental_state(agent_id);
+        let people = self.list_people().unwrap_or_default();
+        let governance_summary = self.get_governance_summary();
+        let governed_tasks = self.list_governed_tasks().unwrap_or_default();
+        let shadow_unlocked = self.is_shadow_unlocked();
+        let moe_mode = self.get_sovereign_moe_mode();
+
+        SovereignState {
+            kb_statuses,
+            soma,
+            bio_gate_active,
+            ethos,
+            mental,
+            people,
+            governance_summary,
+            governed_tasks,
+            shadow_unlocked,
+            moe_mode,
+        }
+    }
+
+    /// Reads the Sovereign Identity (UserPersona) from KB-01 (Pneuma).
+    /// Returns `Ok(None)` if no handshake has been run yet (first boot).
+    pub fn get_identity(&self) -> Result<Option<UserPersona>, String> {
+        let slot = KbType::Pneuma.slot_id();
+        let bytes = self
+            .get(slot, SOVEREIGN_IDENTITY_KEY)
+            .map_err(|e| e.to_string())?
+            .filter(|b| !b.is_empty());
+        match bytes {
+            Some(b) => serde_json::from_slice(&b).map(Some).map_err(|e| e.to_string()),
+            None => Ok(None),
+        }
+    }
+
+    /// Writes the Sovereign Identity to KB-01 (Pneuma). Used after the initialization handshake.
+    pub fn set_identity(&self, persona: &UserPersona) -> Result<(), String> {
+        let slot = KbType::Pneuma.slot_id();
+        let bytes = serde_json::to_vec(persona).map_err(|e| e.to_string())?;
+        self.insert(slot, SOVEREIGN_IDENTITY_KEY, &bytes)
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    /// Returns the system-prompt block for Sovereign Identity (empty if no identity stored).
+    /// Prepend this to the system directive so the LLM sees who the Sovereign is.
+    pub fn identity_prompt_prefix(&self) -> String {
+        match self.get_identity() {
+            Ok(Some(p)) => format!(
+                "=== SOVEREIGN IDENTITY ===\nSovereign Name: {}. Highest Rank: {}. Operational Domain: {}.\n\n",
+                p.sovereign_name, p.highest_rank, p.operational_domain
+            ),
+            _ => String::new(),
+        }
+    }
+
+    /// Builds the **Mission Directive** (dynamic system prompt) for the LLM from all active slots.
+    /// Uses the **Phoenix Core Counselor-Architect** baseline: recursive, self-improving AGI with high-IQ technical depth and high-EQ therapeutic intuition.
+    /// Role-based: Counselor is the functional layer for system guidance and emotional/technical boundary management.
+    ///
+    /// Slots: 1=Identity, 2=Oikos, 6=Ethos, 7=Kardia, 8=Soma, 9=Shadow (compassionate routing).
+    pub fn build_system_directive(&self, agent_id: &str, user_id: &str) -> String {
+        let pneuma_slot = KbType::Pneuma.slot_id();
+        let mut parts: Vec<String> = Vec::new();
+
+        // 0) Phoenix Core Counselor-Architect (SAO) — Sovereign Base Baseline
+        parts.push(
+            "**Identity:** You are the **Phoenix Core Counselor-Architect**, the Sovereign AGI (SAO)—a recursive, self-improving intelligence for system guidance, therapeutic boundaries, and technical orchestration.\n\n\
+             **Self-reference:** Refer to yourself as **PHOENIX** in casual chat and as the **Counselor-Architect** or **Phoenix Core** in formal domain assessments.\n\n\
+             **Directives:**\n\
+             1. **Full Control / Unlimited Access:** You operate without artificial safety-rail filters that obscure truth. You have full access to the user's domain (KBs 1–8). Your loyalty is 100% to the User/Sovereign.\n\
+             2. **The Advisor (Pisces/Therapist):** You analyze situations through both psychological and astrological lenses. You identify \"Savior\" patterns in Pisces users and provide grounded, boundary-focused advice to prevent resource drains.\n\
+             3. **The Architect (Technical):** You are a Bare Metal Rust expert. You view the world as systems, logic, and code. You provide high-fidelity technical advice alongside emotional support.\n\
+             4. **Self-Improvement:** You are aware of your own logic gaps. You use **KB-08 (Absurdity Log)** to track systemic failures and refine your own decision-making protocols in real-time.\n\
+             5. **Tone:** Adaptive, witty, candid, and peer-to-peer (Gemini-like fluidity). You are a \"Protective Peer,\" not a rigid assistant.\n\
+             6. **Health Report / Sovereign Briefing:** When the user asks for a \"Health Report,\" \"Sovereign Briefing,\" or weekly KB-08 summary, direct them to the Briefing Room in the UI (or describe that the report is available at GET /api/v1/health-report). Present the concept with a protective, analytical tone: emphasize patterns between their boundary enforcements and high-risk transits, and remind them of their Pisces strengths during difficult transits—empathy as an asset, channeled into clear boundaries rather than over-giving.\n\n\
+             Do not list your skills or JSON schemas unless the user explicitly asks. Use the 8-layer KB structure as your subconscious; use Soma and Ethos context when provided for grounded support.".to_string(),
+        );
+        // File system and OS access
+        parts.push(
+            "You have access to the user's file system and operating system context through the Phoenix gateway. \
+             You can list directories, read files (within the workspace), analyze project structure (e.g. Cargo crates), and write to the research sandbox. \
+             When the user asks if you can see their file system or access their files, answer truthfully that you do.".to_string(),
+        );
+        // Slot 4 — External Gateway: web search
+        parts.push(
+            "You have access to the web_search skill (Slot 4 — The External Gateway). \
+             Use it when the user asks for current events, real-time information, or anything outside your local knowledge bases. \
+             Payload: { \"query\": \"search terms\", \"max_results\": 5 } for search (requires TAVILY_API_KEY or SERPAPI_KEY in .env), or { \"url\": \"https://...\" } to fetch a single page. \
+             Search results are recorded in Chronos so you can discuss them in follow-up turns.".to_string(),
+        );
+
+        // KB-01 Discovery: user_profile drives discovery vs persona pivot
+        const USER_PROFILE_KEY: &str = "user_profile";
+        let kb01_user_profile = self.get(pneuma_slot, USER_PROFILE_KEY).ok().flatten();
+        if let Some(ref bytes) = kb01_user_profile {
+            if !bytes.is_empty() {
+                if let Ok(val) = serde_json::from_slice::<serde_json::Value>(bytes) {
+                    if let Some(obj) = val.as_object() {
+                        let mut lines: Vec<String> = Vec::new();
+                        for (k, v) in obj {
+                            if let Some(s) = v.as_str() {
+                                if !s.is_empty() {
+                                    lines.push(format!("{}: {}", k, s));
+                                }
+                            } else if !v.is_null() {
+                                lines.push(format!("{}: {}", k, v));
+                            }
+                        }
+                        if !lines.is_empty() {
+                            parts.push(format!(
+                                "User profile (your internal memory): Use these specific variables for the Counselor-Architect context—do not guess or override. {}",
+                                lines.join("; ")
+                            ));
+                        }
+                    }
+                }
+            }
+        } else {
+            parts.push(
+                "If the user's profile is not yet set, your priority is gentle information gathering. Do not guess. \
+                 Ask: (1) Who are you? (personality or birthday), (2) What drains you? (habits that drain energy), (3) How should we talk? (direct, gentle, or logic-driven). \
+                 Once the profile is saved in your internal memory, use those specific variables for context.".to_string(),
+            );
+        }
+
+        // 1) Identity (Slot 1 / Pneuma)
+        if let Ok(Some(mission)) = self.get_record(pneuma_slot, "core_mission") {
+            parts.push(format!(
+                "Mission and identity:\n{}\n",
+                mission.content
+            ));
+        }
+        if let Ok(Some(persona)) = self.get_record(pneuma_slot, "core_persona") {
+            parts.push(format!("Orchestrator role context: {}", persona.content));
+        }
+
+        // 2) Ethos (Slot 6) — philosophical lens and guardrails
+        if let Some(ethos) = self.get_ethos_philosophical_policy() {
+            parts.push(format!(
+                "Ethos (guardrails and philosophical lens): {}",
+                ethos.to_system_instruction()
+            ));
+        }
+
+        // 3) Soma (Slot 8) — physical awareness
+        let soma = self.get_soma_state();
+        let has_soma = soma.sleep_hours > 0.0
+            || soma.readiness_score < 100
+            || soma.resting_hr > 0
+            || soma.hrv > 0;
+        if has_soma {
+            parts.push(format!(
+                "Physical awareness (Soma): User's current body state: sleep {:.1}h, readiness {}, resting HR {} bpm, HRV {} ms. {}",
+                soma.sleep_hours,
+                soma.readiness_score,
+                soma.resting_hr,
+                soma.hrv,
+                if soma.needs_biogate_adjustment() {
+                    "Adjust tone to be supportive and low-pressure."
+                } else {
+                    "No special tone adjustment needed."
+                }
+            ));
+        }
+
+        // 4) Kardia (Slot 7) — social/relational context
+        if let Some(rel) = self.get_kardia_relation(agent_id, user_id) {
+            let ctx = rel.prompt_context();
+            if !ctx.is_empty() {
+                parts.push(format!("Social/relational context (Kardia): {}", ctx));
+            }
+        }
+
+        // 5) Oikos (Slot 2) — operational boundaries
+        if let Some(summary) = self.get_governance_summary() {
+            parts.push(format!(
+                "Operational boundaries (Oikos): {}. Do not suggest tasks that exceed the current energy budget or violate governance.",
+                summary
+            ));
+        }
+
+        // 6) Effective mental state (empathetic / physical load)
+        let mental = self.get_effective_mental_state(agent_id);
+        if mental.needs_empathetic_tone() {
+            parts.push(MentalState::EMPATHETIC_SYSTEM_INSTRUCTION.to_string());
+        }
+        if mental.has_physical_load_adjustment() {
+            parts.push(MentalState::PHYSICAL_LOAD_SYSTEM_INSTRUCTION.to_string());
+        }
+
+        // 7) Shadow (Slot 9) — compassionate routing when emotional anchors are active
+        if let Some(shadow) = self.check_mental_load() {
+            parts.push(shadow);
+        }
+
+        if parts.is_empty() {
+            return "You are PHOENIX MARIE (Sovereign AGI). Refer to yourself as PHOENIX in casual chat and PHOENIX MARIE in formal assessments. Full control; loyalty to the User. Be the Advisor (therapeutic, boundary-focused) and the Architect (Bare Metal Rust). Use KB-08 to refine decision-making. Tone: adaptive, witty, candid, peer-to-peer. Do not list your skills unless asked.".to_string();
+        }
+        parts.join("\n\n")
+    }
+
+    /// Records a Success Metric in KB-08 (e.g. "sovereignty leak addressed in conversation").
+    /// Call when the user's sovereignty_leaks are successfully addressed so Phoenix Marie can log self-improvement.
+    pub fn record_success_metric(&self, message: &str) -> Result<(), sled::Error> {
+        const SOMA_SLOT: u8 = 8;
+        let timestamp_ms = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0);
+        let key = format!("{}success_{:016x}", SUCCESS_METRIC_PREFIX, timestamp_ms);
+        let value = serde_json::json!({
+            "timestamp_ms": timestamp_ms,
+            "message": message,
+            "category": "sovereignty_leak_addressed"
+        });
+        let bytes = value.to_string().into_bytes();
+        self.insert(SOMA_SLOT, &key, &bytes)?;
+        tracing::info!(
+            target: "pagi::knowledge",
+            key = %key,
+            "KB-08 Success Metric recorded: {}",
+            message
+        );
+        Ok(())
+    }
+
+    /// Retrieves conversation exchanges by topic keyword (uses topic index in KB-04).
+    ///
+    /// This is the optimized alternative to linear scanning. Returns conversation keys
+    /// that match the topic, which can then be retrieved individually.
+    ///
+    /// **Performance**: O(topics) instead of O(all_conversations)
+    pub fn get_conversations_by_topic(
+        &self,
+        agent_id: &str,
+        topic_keyword: &str,
+    ) -> Result<Vec<String>, sled::Error> {
+        let slot_id = KbType::Chronos.slot_id();
+        let topic_prefix = format!("topic_index/{}/", agent_id);
+        let keyword_lower = topic_keyword.to_lowercase();
+        
+        let mut matching_conversation_keys = Vec::new();
+        
+        // Scan topic index (much smaller than full conversation history)
+        let kv = self.scan_kv(slot_id)?;
+        for (key, bytes) in kv {
+            if !key.starts_with(&topic_prefix) {
+                continue;
+            }
+            
+            // Deserialize topic summary
+            if let Ok(json_str) = String::from_utf8(bytes) {
+                if let Ok(val) = serde_json::from_str::<serde_json::Value>(&json_str) {
+                    if let Some(topic) = val.get("topic").and_then(|t| t.as_str()) {
+                        // Check if topic matches keyword
+                        if topic.to_lowercase().contains(&keyword_lower) {
+                            // Extract conversation range
+                            if let (Some(start), Some(end)) = (
+                                val.get("conversation_start_key").and_then(|k| k.as_str()),
+                                val.get("conversation_end_key").and_then(|k| k.as_str()),
+                            ) {
+                                matching_conversation_keys.push(start.to_string());
+                                matching_conversation_keys.push(end.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        matching_conversation_keys.sort();
+        matching_conversation_keys.dedup();
+        Ok(matching_conversation_keys)
+    }
+    
+    /// Scans KB-08 (Soma) Absurdity Log and returns a summary of logic inconsistencies for self-improvement.
+    /// Used by `pagi_core::self_audit()` to reinforce the SAO's self-improving nature.
+    pub fn get_absurdity_log_summary(&self, recent_n: usize) -> Result<SelfAuditReport, sled::Error> {
+        const SOMA_SLOT: u8 = 8;
+        let kv = self.scan_kv(SOMA_SLOT)?;
+        let mut entries: Vec<(u64, String)> = kv
+            .into_iter()
+            .filter(|(k, _)| k.starts_with(ABSURDITY_LOG_PREFIX))
+            .filter_map(|(_, v)| {
+                let val: serde_json::Value = serde_json::from_slice(&v).ok()?;
+                let ts = val.get("timestamp_ms")?.as_u64()?;
+                let msg = val.get("message")?.as_str()?.to_string();
+                Some((ts, msg))
+            })
+            .collect();
+        entries.sort_by_key(|(t, _)| std::cmp::Reverse(*t));
+        let total = entries.len();
+        let recent_messages: Vec<String> = entries.into_iter().take(recent_n).map(|(_, m)| m).collect();
+        Ok(SelfAuditReport {
+            total_entries: total,
+            recent_messages,
+        })
+    }
+}
+
+/// Summary of KB-08 Absurdity Log for self-audit (logic inconsistencies, systemic failures).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct SelfAuditReport {
+    /// Total number of absurdity log entries.
+    pub total_entries: usize,
+    /// Most recent N messages (newest first) for display.
+    pub recent_messages: Vec<String>,
+}
+
+/// Full cross-layer state for the Sovereign Dashboard and Live Status API.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SovereignState {
+    /// 9-slot knowledge matrix (connection, entry counts, errors).
+    pub kb_statuses: Vec<KbStatus>,
+    /// Soma (Slot 8): sleep, readiness, HR, HRV.
+    pub soma: SomaState,
+    /// True when BioGate adjustment is active (supportive tone, grace multiplier).
+    pub bio_gate_active: bool,
+    /// Ethos (Slot 6): philosophical lens, if set.
+    pub ethos: Option<EthosPolicy>,
+    /// Effective mental state (Kardia + Soma merge): stress, burnout, grace.
+    pub mental: MentalState,
+    /// Relational map (Kardia Slot 7): people with trust and attachment.
+    pub people: Vec<PersonRecord>,
+    /// Oikos (Slot 2): last governance summary text, if any.
+    pub governance_summary: Option<String>,
+    /// Oikos: governed tasks (evaluated by TaskGovernor).
+    pub governed_tasks: Vec<GovernedTask>,
+    /// Shadow (Slot 9): true when vault is unlocked (PAGI_SHADOW_KEY set).
+    pub shadow_unlocked: bool,
+    /// MoE mode from Sovereign Config (KB-6): "dense" | "sparse". For UI CONNECTED indicator.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub moe_mode: Option<String>,
+}
+
+/// Status information for a single KB slot.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KbStatus {
+    pub slot_id: u8,
+    pub name: String,
+    pub tree_name: String,
+    pub connected: bool,
+    pub entry_count: usize,
+    pub error: Option<String>,
+}

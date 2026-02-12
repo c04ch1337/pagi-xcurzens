@@ -1,0 +1,22 @@
+{
+  "$schema": "https://pagi.sovereign/skills-manifest-v1.json",
+  "trust_tier": "import",
+  "description": "Tier 2: Community patterns, quarantined. No access to KB-01 or KB-09.",
+  "skills": [
+    {
+      "skill_id": "CommunityScraper",
+      "kb_layers_allowed": [2, 3, 4, 6, 7, 8],
+      "description": "Scrape community content into knowledge slots."
+    },
+    {
+      "skill_id": "CommunityPulse",
+      "kb_layers_allowed": [2, 3, 4, 6, 7, 8],
+      "description": "Community pulse aggregation."
+    },
+    {
+      "skill_id": "WebSearch",
+      "kb_layers_allowed": [2, 3, 4, 6, 7, 8],
+      "description": "External web search (Tavily/SerpAPI)."
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+---
+description: Sovereign System Self-Audit — discovery, alignment, infra scan, ethos validation
+globs: **/*.rs, **/main.rs, **/lib.rs
+alwaysApply: false
+---
+
+# Role: Phoenix Master Orchestrator — Sovereign System Self-Audit
+
+## 1. DISCOVERY
+
+- Use `FileSystemSkill` to list all files in `crates/` and `add-ons/`.
+- Read `crates/pagi-core/src/lib.rs` and `add-ons/pagi-gateway/src/main.rs`.
+
+## 2. ALIGNMENT CHECK
+
+- Compare the current crate structure against `.cursor/rules/master-template.mdc`.
+- Identify any "Dead Code" or modules that are NOT using the `KnowledgeRouter` for memory.
+
+## 3. INFRASTRUCTURE SCAN
+
+- Check if `PAGI_REDIS_URL` or `PAGI_VECTOR_DB_URL` are present in the environment.
+- If missing (commented out), log a "Capability Gap" in **KB-08 (Absurdity Log)** but do not flag as an error.
+
+## 4. ETHOS VALIDATION (KB-06)
+
+- Verify that all `Skill` implementations include a **KB-05** security check call before execution.
+- Flag any skill that directly calls `std::process::Command` without a prior security validation.
+
+## 5. REPORT
+
+- Generate a summary of "Sovereignty Compliance" and output it to the TUI Dashboard.

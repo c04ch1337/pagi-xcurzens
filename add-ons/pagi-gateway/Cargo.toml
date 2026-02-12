@@ -1,0 +1,50 @@
+[package]
+name = "pagi-gateway"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+tower-http = { version = "0.5", features = ["fs", "cors"] }
+zip = "0.6"
+async-stream = "0.3"
+futures-util = "0.3"
+tokio-stream = "0.1"
+uuid = { version = "1", features = ["v4"] }
+chrono = { workspace = true }
+dotenvy = { workspace = true }
+regex = "1"
+rusqlite = { version = "0.31", features = ["bundled"] }
+pagi-core = { path = "../../crates/pagi-core" }
+pagi-skills = { path = "../../crates/pagi-skills" }
+pagi-mimir = { path = "../../crates/pagi-mimir" }
+pagi-bridge-ms = { path = "../../crates/pagi-bridge-ms", optional = true }
+pagi-voice = { path = "../../crates/pagi-voice", optional = true }
+reqwest = { version = "0.12", features = ["json"] }
+async-trait = "0.1"
+ratatui = { version = "0.28", optional = true }
+crossterm = { version = "0.28", optional = true }
+
+
+[features]
+default = []
+voice = ["dep:pagi-voice"]
+mimir = []
+bridge-ms = ["dep:pagi-bridge-ms"]
+tui-dashboard = ["dep:ratatui", "dep:crossterm"]
+vector = ["pagi-core/vector"]
+# Sovereign Module Features (compile-time plugin system)
+finance = []  # Future: finance = ["pagi-finance"]
+health = []   # Future: health = ["pagi-health"]
+ranch = []    # Future: ranch = ["pagi-ranch"]
+security = [] # Future: security = ["pagi-security"]
+all-modules = ["finance", "health", "ranch", "security"]
+
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }

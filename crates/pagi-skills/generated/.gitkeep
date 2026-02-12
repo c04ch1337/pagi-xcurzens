@@ -1,0 +1,2 @@
+# Dynamic skills compiled by pagi-evolution are written here.
+# Each skill is a crate with Cargo.toml and src/lib.rs exporting pagi_dynamic_skill_execute / pagi_dynamic_skill_free.

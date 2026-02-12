@@ -1,0 +1,21 @@
+[package]
+name = "pagi-evolution"
+version = "0.1.0"
+edition = "2021"
+description = "Self-evolving AGI: dynamic skill compilation and hot-reload via libloading"
+
+[dependencies]
+libloading = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+reqwest = { workspace = true }
+chrono = { workspace = true }
+tempfile = "3"
+thiserror = "1.0"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_System_LibraryLoader"] }

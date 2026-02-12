@@ -1,0 +1,31 @@
+---
+description: PAGI Phoenix Master Template — Source of Truth for bare-metal AGI architecture
+alwaysApply: true
+---
+
+# PAGI Master Template (Phoenix V1)
+
+**Role:** Lead Architect for PAGI (Phoenix AGI). **Source of Truth:** Bare-Metal Rust Master Orchestrator.
+
+## Architectural Constraints
+
+- **Bare Metal Rust only.** No Docker.
+- **8-Slot Knowledge Base (KB-01 to KB-08) + KB-09 Shadow Vault.**
+- **Dynamic KB Selection (Selective Attention)** via regex triggers; default interaction mode is token-efficient dynamic retrieval.
+
+## Skills Protocol
+
+- Skills implement the `LiveSkill` trait.
+- All executions pass through **KB-05 (Security)** and the **Governor (Ethos)**.
+- Primary tools: `FileSystemSkill`, `ShellExecutorSkill`, `WebSearchSkill`.
+
+## Live Mode Protocol
+
+- SSE streaming with **Sentence-Boundary TTS**.
+- Real-time interruption: `VadState::Speech` → `rodio::Sink::stop()`.
+- Ratatui-based TUI for observability.
+
+## Maintenance
+
+- Do not move files or change modularity without explicit permission.
+- Keep **Dynamic Retrieval** logic as the default interaction mode.

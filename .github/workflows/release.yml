@@ -1,0 +1,221 @@
+name: Phoenix Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., 0.1.0-beta.1)'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.get_version.outputs.version }}
+    steps:
+      - name: Get version from tag
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Phoenix v${{ steps.get_version.outputs.version }}
+          body: |
+            ## Phoenix v${{ steps.get_version.outputs.version }}
+            
+            ### 🚀 Beta Release
+            
+            **Download the appropriate binary for your platform:**
+            - Windows: `phoenix-windows-x86_64.zip`
+            - Linux: `phoenix-linux-x86_64.tar.gz`
+            - macOS (Intel): `phoenix-macos-x86_64.tar.gz`
+            - macOS (Apple Silicon): `phoenix-macos-aarch64.tar.gz`
+            
+            ### 📚 Quick Start
+            
+            1. Extract the archive
+            2. Copy `.env.example` to `.env`
+            3. Run `phoenix-rise.sh` (Unix) or `phoenix-rise.ps1` (Windows)
+            4. Provide your OpenRouter API key when prompted
+            5. Start using Phoenix!
+            
+            ### 🔐 Privacy
+            
+            - All your data stays on YOUR machine
+            - API keys stored locally in `user_config.toml`
+            - Only LLM API calls go through OpenRouter (using YOUR key)
+            
+            ### 📖 Documentation
+            
+            See `BETA_README.md` in the archive for full instructions.
+          draft: false
+          prerelease: true
+
+  build:
+    name: Build ${{ matrix.platform.name }}
+    needs: create-release
+    runs-on: ${{ matrix.platform.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Windows x86_64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_ext: .exe
+            archive_ext: .zip
+            archive_name: phoenix-windows-x86_64.zip
+          
+          - name: Linux x86_64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_ext: ''
+            archive_ext: .tar.gz
+            archive_name: phoenix-linux-x86_64.tar.gz
+          
+          - name: macOS x86_64
+            os: macos-latest
+            target: x86_64-apple-darwin
+            binary_ext: ''
+            archive_ext: .tar.gz
+            archive_name: phoenix-macos-x86_64.tar.gz
+          
+          - name: macOS ARM64
+            os: macos-latest
+            target: aarch64-apple-darwin
+            binary_ext: ''
+            archive_ext: .tar.gz
+            archive_name: phoenix-macos-aarch64.tar.gz
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.target }}
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/registry
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo index
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/git
+          key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache cargo build
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.platform.target }} -p pagi-gateway --features vector
+        env:
+          RUSTFLAGS: "-C target-feature=+crt-static"
+
+      - name: Create release directory
+        run: |
+          mkdir -p release/phoenix-${{ needs.create-release.outputs.version }}
+
+      - name: Copy binary (Unix)
+        if: matrix.platform.os != 'windows-latest'
+        run: |
+          cp target/${{ matrix.platform.target }}/release/pagi-gateway${{ matrix.platform.binary_ext }} release/phoenix-${{ needs.create-release.outputs.version }}/
+          chmod +x release/phoenix-${{ needs.create-release.outputs.version }}/pagi-gateway${{ matrix.platform.binary_ext }}
+
+      - name: Copy binary (Windows)
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          copy target\${{ matrix.platform.target }}\release\pagi-gateway${{ matrix.platform.binary_ext }} release\phoenix-${{ needs.create-release.outputs.version }}\
+
+      - name: Copy essential files
+        run: |
+          cp VERSION release/phoenix-${{ needs.create-release.outputs.version }}/
+          cp README.md release/phoenix-${{ needs.create-release.outputs.version }}/
+          cp .env.example release/phoenix-${{ needs.create-release.outputs.version }}/
+          cp docs/QUICKSTART.md release/phoenix-${{ needs.create-release.outputs.version }}/
+          cp docs/ONBOARDING_GUIDE.md release/phoenix-${{ needs.create-release.outputs.version }}/
+          cp docs/BETA_DISTRIBUTION_GUIDE.md release/phoenix-${{ needs.create-release.outputs.version }}/BETA_README.md
+          cp docs/BETA_TESTER_ONBOARDING_GUIDE.md release/phoenix-${{ needs.create-release.outputs.version }}/
+
+      - name: Copy startup scripts (Unix)
+        if: matrix.platform.os != 'windows-latest'
+        run: |
+          cp phoenix-rise.sh release/phoenix-${{ needs.create-release.outputs.version }}/
+          cp pagi-up.sh release/phoenix-${{ needs.create-release.outputs.version }}/
+          chmod +x release/phoenix-${{ needs.create-release.outputs.version }}/*.sh
+
+      - name: Copy startup scripts (Windows)
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          copy phoenix-rise.ps1 release\phoenix-${{ needs.create-release.outputs.version }}\
+          copy pagi-up.ps1 release\phoenix-${{ needs.create-release.outputs.version }}\
+
+      - name: Create archive (Unix tar.gz)
+        if: matrix.platform.archive_ext == '.tar.gz'
+        run: |
+          cd release
+          tar -czf ${{ matrix.platform.archive_name }} phoenix-${{ needs.create-release.outputs.version }}
+
+      - name: Create archive (Windows zip)
+        if: matrix.platform.archive_ext == '.zip'
+        run: |
+          cd release
+          Compress-Archive -Path phoenix-${{ needs.create-release.outputs.version }} -DestinationPath ${{ matrix.platform.archive_name }}
+
+      - name: Generate checksum (Unix)
+        if: matrix.platform.os != 'windows-latest'
+        run: |
+          cd release
+          shasum -a 256 ${{ matrix.platform.archive_name }} > ${{ matrix.platform.archive_name }}.sha256
+
+      - name: Generate checksum (Windows)
+        if: matrix.platform.os == 'windows-latest'
+        run: |
+          cd release
+          $hash = Get-FileHash ${{ matrix.platform.archive_name }} -Algorithm SHA256
+          "$($hash.Hash)  ${{ matrix.platform.archive_name }}" | Out-File -FilePath ${{ matrix.platform.archive_name }}.sha256
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./release/${{ matrix.platform.archive_name }}
+          asset_name: ${{ matrix.platform.archive_name }}
+          asset_content_type: application/octet-stream
+
+      - name: Upload Checksum
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./release/${{ matrix.platform.archive_name }}.sha256
+          asset_name: ${{ matrix.platform.archive_name }}.sha256
+          asset_content_type: text/plain
