@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Lead Ledger — Command Center | PAGI XCURZENS</title>
+  <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { background-color: #051C55; }
+  </style>
+</head>
+<body class="min-h-screen text-slate-200 p-6">
+  <div class="max-w-6xl mx-auto">
+    <header class="flex justify-between items-center mb-6">
+      <h1 class="text-2xl font-bold" style="color: #FA921C;">Lead Ledger</h1>
+      <p class="text-slate-400 text-sm">Command Center · Sovereign view · Refreshes every 60s</p>
+    </header>
+
+    <div
+      id="command-feed"
+      hx-get="/command/feed"
+      hx-trigger="load, every 60s"
+      hx-swap="innerHTML"
+      class="rounded-lg overflow-hidden"
+    >
+      <p class="text-slate-500">Loading infrastructure data…</p>
+    </div>
+  </div>
+</body>
+</html>

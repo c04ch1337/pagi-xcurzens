@@ -1,0 +1,8 @@
+[package]
+name = "pagi-skills"
+version.workspace = true
+edition.workspace = true
+description = "PAGI XCURZENS adapter lifecycle - Forge, Scribe, SAM authority"
+
+[dependencies]
+pagi_xcurzens_core = { path = "../pagi-xcurzens-core" }

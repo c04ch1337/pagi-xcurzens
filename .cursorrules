@@ -1,0 +1,9 @@
+# PAGI XCURZENS - Cursor rules
+
+- **Project:** PAGI XCURZENS. Use "pagi-xcurzens" / "pagi_xcurzens" / "PAGI XCURZENS" in names and docs. Do not use legacy naming (pagi-uac-main, PAGI-UAC, pagi_uac).
+- **Rust:** Crate names are `pagi_xcurzens_core`, `pagi-xcurzens-gateway`. Imports use `pagi_xcurzens_core` (snake_case in code).
+- **Gateway:** Single source of truth at `http://127.0.0.1:8000`. UI and scripts talk to the Rust gateway only.
+- **Scripts:** PowerShell orchestrator scripts live in repo root; `$ProjectName` and headers are "PAGI XCURZENS"; paths are relative to repo root (pagi-xcurzens folder).
+- **Port lockdown:** All frontend deployments MUST use Port 3001. All backend Gateway logic MUST anchor to Port 8000. No exceptions.
+- **Bare Metal:** Do not suggest Docker; use local Rust/PowerShell orchestration only.
+- **Forge protection:** Protected skills (forge, scribe, gateway, auth, xcurzens_core) cannot be decommissioned or evolved by SAM without override. Force actions require header `Sovereign-Key` matching `FORGE_SOVEREIGN_KEY`; override is exclusively Architect-held.

@@ -1,0 +1,16 @@
+# Rust
+/target/
+**/*.rs.bk
+# Env (keep .env.example)
+.env
+.env.local
+
+# Sled / data (local KB-07)
+/data/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db

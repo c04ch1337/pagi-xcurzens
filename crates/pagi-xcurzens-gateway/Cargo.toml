@@ -1,0 +1,16 @@
+[package]
+name = "pagi-xcurzens-gateway"
+version.workspace = true
+edition.workspace = true
+description = "PAGI XCURZENS API gateway (Rust)"
+
+[dependencies]
+pagi_xcurzens_core = { path = "../pagi-xcurzens-core" }
+axum = "0.7"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+futures-util = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }

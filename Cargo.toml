@@ -1,0 +1,14 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/pagi-xcurzens-core",
+    "crates/pagi-xcurzens-gateway",
+    "crates/pagi-skills",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["PAGI XCURZENS"]
+license = "MIT"
+repository = "https://github.com/pagi-xcurzens/pagi-xcurzens"
