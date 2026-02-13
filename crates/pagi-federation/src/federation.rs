@@ -1,5 +1,5 @@
-//! Federation bridge: MasterServer (Jamey), SatelliteClient, and FederatedBridgeSkill.
-//! TaskResults are logged as "Remote Intelligence" into Jamey's multi-layer memory.
+//! Federation bridge: MasterServer (The Creator), SatelliteClient, and FederatedBridgeSkill.
+//! TaskResults are logged as "Remote Intelligence" into The Creator's multi-layer memory.
 
 use tokio_stream::StreamExt;
 
@@ -15,7 +15,7 @@ use tonic::{Request, Response, Status};
 use tracing::{info, instrument};
 
 const REMOTE_INTELLIGENCE_PREFIX: &str = "remote_intelligence/";
-const JAMEY_IDENTITY: &str = "Jamey";
+const THE_CREATOR_IDENTITY: &str = "The Creator";
 /// First message from Satellite in SubmitTask: task_id empty, summary "READY", node_id set.
 const READY_SUMMARY: &str = "READY";
 
@@ -32,7 +32,7 @@ pub struct SatelliteInfo {
 /// Pending task: oneshot to complete when TaskResult arrives.
 type PendingTask = oneshot::Sender<TaskResult>;
 
-/// Master (Jamey) state: registered satellites and pending task completions.
+/// Master (The Creator) state: registered satellites and pending task completions.
 pub struct MasterState {
     pub satellites: DashMap<String, SatelliteInfo>,
     pub pending: DashMap<String, PendingTask>,
@@ -84,7 +84,7 @@ impl Default for MasterState {
     }
 }
 
-/// Handle for submitting tasks from Jamey's orchestrator (used by FederatedBridgeSkill).
+/// Handle for submitting tasks from The Creator's orchestrator (used by FederatedBridgeSkill).
 pub struct FederationHandle {
     state: Arc<MasterState>,
     task_tx: DashMap<String, mpsc::Sender<Result<Task, Status>>>,
@@ -197,7 +197,7 @@ impl MasterServer {
         Arc::clone(&self.handle)
     }
 
-    /// Run the Phoenix gRPC server (Jamey's listener). Use a port in 8001–8099 per architecture.
+    /// Run the Phoenix gRPC server (The Creator's listener). Use a port in 8001–8099 per architecture.
     /// Call with `Arc::clone(&server)`. For mTLS, use `tonic::transport::Server::builder().tls_config(...)`.
     pub async fn serve(
         this: Arc<Self>,
@@ -258,7 +258,7 @@ impl PhoenixService for MasterServer {
         Ok(Response::new(RegisterNodeResponse {
             accepted: true,
             message: format!("Welcome, {} registered as {}", req.node_id, req.role),
-            master_identity: JAMEY_IDENTITY.to_string(),
+            master_identity: THE_CREATOR_IDENTITY.to_string(),
         }))
     }
 
@@ -313,7 +313,7 @@ impl PhoenixService for MasterServer {
     }
 }
 
-// FederatedBridgeSkill: implements AgentSkill so Jamey can use_tool("red_team_scan", ...) transparently.
+// FederatedBridgeSkill: implements AgentSkill so The Creator can use_tool("red_team_scan", ...) transparently.
 /// One skill per capability (e.g. "red_team_scan"); execute() submits task to a Satellite and returns the result.
 pub struct FederatedBridgeSkill {
     capability: String,
@@ -361,7 +361,7 @@ impl AgentSkill for FederatedBridgeSkill {
 }
 
 // ---------------------------------------------------------------------------
-// SatelliteClient: runs on a Satellite, connects to Jamey, stays persistent.
+// SatelliteClient: runs on a Satellite, connects to The Creator, stays persistent.
 // Sends heartbeat every 30s; receives Tasks and returns TaskResults via executor.
 // ---------------------------------------------------------------------------
 
@@ -371,7 +371,7 @@ use std::time::Duration;
 
 const HEARTBEAT_INTERVAL_SECS: u64 = 30;
 
-/// Satellite client: connect to Jamey's IP, register, maintain SubmitTask stream, heartbeat every 30s.
+/// Satellite client: connect to The Creator's IP, register, maintain SubmitTask stream, heartbeat every 30s.
 pub struct SatelliteClient {
     pub node_id: String,
     pub role: String,
@@ -397,20 +397,20 @@ impl SatelliteClient {
         }
     }
 
-    /// Run the satellite: connect to Jamey at `jamey_addr` (e.g. "https://192.168.1.2:50052"),
+    /// Run the satellite: connect to The Creator at `creator_addr` (e.g. "https://192.168.1.2:50052"),
     /// register, open bi-di stream (send READY, then receive Task -> run executor -> send TaskResult),
     /// and send heartbeat every 30s.
     /// `executor` runs each Task locally and returns the TaskResult to send back.
     pub async fn run<F, Fut>(
         &self,
-        jamey_addr: &str,
+        creator_addr: &str,
         mut executor: F,
     ) -> Result<(), FederationError>
     where
         F: FnMut(Task) -> Fut + Send + 'static,
         Fut: Future<Output = TaskResult> + Send + 'static,
     {
-        let channel = tonic::transport::Channel::from_shared(jamey_addr.to_string())
+        let channel = tonic::transport::Channel::from_shared(creator_addr.to_string())
             .map_err(|e| FederationError::Connect(e.to_string()))?
             .connect()
             .await
@@ -460,7 +460,7 @@ impl SatelliteClient {
             .into_inner();
 
         let node_id = self.node_id.clone();
-        let heartbeat_addr = jamey_addr.to_string();
+        let heartbeat_addr = creator_addr.to_string();
         tokio::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(HEARTBEAT_INTERVAL_SECS));
             loop {

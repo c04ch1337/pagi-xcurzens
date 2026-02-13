@@ -1,13 +1,13 @@
-# ══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # PAGI SOVEREIGN MASTER ORCHESTRATOR
-# ══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 # This script provides a unified entry point for the PAGI ecosystem with:
 # - Automatic execution policy fixes
 # - Environment validation
 # - Knowledge Base provisioning
 # - Port cleanup
 # - Sequential build and launch with error handling
-# ══════════════════════════════════════════════════════════════════════════════
+# =============================================================================
 
 param(
     [switch]$SkipBuild,
@@ -18,18 +18,18 @@ param(
 $ErrorActionPreference = "Stop"
 $script:HasErrors = $false
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # UTILITY FUNCTIONS
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Write-SovereignHeader {
     Write-Host ""
-    Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║                                                                    ║" -ForegroundColor Cyan
-    Write-Host "║              PAGI SOVEREIGN MASTER ORCHESTRATOR                    ║" -ForegroundColor Cyan
-    Write-Host "║                    Phoenix Marie v0.1.0                            ║" -ForegroundColor Cyan
-    Write-Host "║                                                                    ║" -ForegroundColor Cyan
-    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
+    Write-Host "|                                                                    |" -ForegroundColor Cyan
+    Write-Host "|              PAGI SOVEREIGN MASTER ORCHESTRATOR                    |" -ForegroundColor Cyan
+    Write-Host "|                    Phoenix Marie v0.1.0                            |" -ForegroundColor Cyan
+    Write-Host "|                                                                    |" -ForegroundColor Cyan
+    Write-Host "+====================================================================+" -ForegroundColor Cyan
     Write-Host ""
 }
 
@@ -37,22 +37,22 @@ function Write-StepHeader {
     param([string]$Step, [string]$Description)
     Write-Host ""
     Write-Host "[$Step] $Description" -ForegroundColor Yellow
-    Write-Host ("─" * 70) -ForegroundColor DarkGray
+    Write-Host ("-" * 70) -ForegroundColor DarkGray
 }
 
 function Write-Success {
     param([string]$Message)
-    Write-Host "✓ $Message" -ForegroundColor Green
+    Write-Host "[OK] $Message" -ForegroundColor Green
 }
 
-function Write-Warning {
+function Write-SovereignWarning {
     param([string]$Message)
-    Write-Host "⚠ $Message" -ForegroundColor Yellow
+    Write-Host "[!] $Message" -ForegroundColor Yellow
 }
 
-function Write-Error {
+function Write-SovereignError {
     param([string]$Message)
-    Write-Host "✗ $Message" -ForegroundColor Red
+    Write-Host "[X] $Message" -ForegroundColor Red
     $script:HasErrors = $true
 }
 
@@ -61,9 +61,9 @@ function Write-Info {
     Write-Host "  $Message" -ForegroundColor Gray
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 0: EXECUTION POLICY CHECK & FIX
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Test-ExecutionPolicy {
     Write-StepHeader "0/7" "Checking PowerShell Execution Policy"
@@ -72,7 +72,7 @@ function Test-ExecutionPolicy {
     Write-Info "Current policy: $currentPolicy"
     
     if ($currentPolicy -eq "Restricted" -or $currentPolicy -eq "Undefined") {
-        Write-Warning "Execution policy is too restrictive for script execution"
+        Write-SovereignWarning "Execution policy is too restrictive for script execution"
         Write-Info "Attempting to set policy to RemoteSigned for CurrentUser..."
         
         try {
@@ -80,7 +80,7 @@ function Test-ExecutionPolicy {
             Write-Success "Execution policy updated to RemoteSigned"
         }
         catch {
-            Write-Error "Failed to update execution policy. Please run as Administrator:"
+            Write-SovereignError "Failed to update execution policy. Please run as Administrator:"
             Write-Info "  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser"
             return $false
         }
@@ -92,9 +92,9 @@ function Test-ExecutionPolicy {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 1: ENVIRONMENT VALIDATION
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Test-Prerequisites {
     Write-StepHeader "1/7" "Validating System Prerequisites"
@@ -108,7 +108,7 @@ function Test-Prerequisites {
         Write-Success "Rust found: $rustVersion"
     }
     else {
-        Write-Error "Rust not found. Install from: https://rustup.rs/"
+        Write-SovereignError "Rust not found. Install from: https://rustup.rs/"
         $allGood = $false
     }
     
@@ -119,7 +119,7 @@ function Test-Prerequisites {
         Write-Success "Node.js found: $nodeVersion"
     }
     else {
-        Write-Error "Node.js not found. Install from: https://nodejs.org/"
+        Write-SovereignError "Node.js not found. Install from: https://nodejs.org/"
         $allGood = $false
     }
     
@@ -130,7 +130,7 @@ function Test-Prerequisites {
         Write-Success "npm found: v$npmVersion"
     }
     else {
-        Write-Error "npm not found. Install Node.js from: https://nodejs.org/"
+        Write-SovereignError "npm not found. Install Node.js from: https://nodejs.org/"
         $allGood = $false
     }
     
@@ -141,16 +141,16 @@ function Test-Prerequisites {
         Write-Success "Running from repository root"
     }
     else {
-        Write-Error "Not running from repository root. Please run from: $PSScriptRoot"
+        Write-SovereignError "Not running from repository root. Please run from: $PSScriptRoot"
         $allGood = $false
     }
     
     return $allGood
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 2: ENVIRONMENT FILE CHECK
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Test-EnvironmentFile {
     Write-StepHeader "2/7" "Checking Environment Configuration"
@@ -173,9 +173,9 @@ function Test-EnvironmentFile {
         }
         
         if ($warnings.Count -gt 0) {
-            Write-Warning "Environment configuration warnings:"
+            Write-SovereignWarning "Environment configuration warnings:"
             foreach ($warning in $warnings) {
-                Write-Info "  • $warning"
+                Write-Info "  - $warning"
             }
             Write-Info "System will run in mock mode without API keys"
         }
@@ -184,15 +184,15 @@ function Test-EnvironmentFile {
         }
     }
     else {
-        Write-Warning "No .env file found"
+        Write-SovereignWarning "No .env file found"
         if (Test-Path $envExamplePath) {
             Write-Info "Creating .env from .env.example..."
             Copy-Item $envExamplePath $envPath
             Write-Success "Created .env file"
-            Write-Warning "Please edit .env and add your API keys before running in live mode"
+            Write-SovereignWarning "Please edit .env and add your API keys before running in live mode"
         }
         else {
-            Write-Error ".env.example not found. Cannot create environment file."
+            Write-SovereignError ".env.example not found. Cannot create environment file."
             return $false
         }
     }
@@ -200,9 +200,9 @@ function Test-EnvironmentFile {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 3: KNOWLEDGE BASE PROVISIONING
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Initialize-KnowledgeBases {
     Write-StepHeader "3/7" "Provisioning Knowledge Base Directories"
@@ -253,9 +253,9 @@ function Initialize-KnowledgeBases {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 4: PORT CLEANUP
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Clear-SovereignPorts {
     Write-StepHeader "4/7" "Cleaning Sovereign Ports"
@@ -295,15 +295,15 @@ function Clear-SovereignPorts {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 5: WORKSPACE BUILD
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Build-Workspace {
     Write-StepHeader "5/7" "Building Rust Workspace"
     
     if ($SkipBuild) {
-        Write-Warning "Skipping build (--SkipBuild flag set)"
+        Write-SovereignWarning "Skipping build (--SkipBuild flag set)"
         return $true
     }
     
@@ -320,7 +320,7 @@ function Build-Workspace {
     & cargo build --workspace --features "bridge-ms,vector"
     
     if ($LASTEXITCODE -ne 0) {
-        Write-Error "Workspace build failed with exit code $LASTEXITCODE"
+        Write-SovereignError "Workspace build failed with exit code $LASTEXITCODE"
         Write-Info "Try running: cargo clean && cargo build --workspace --features bridge-ms,vector"
         return $false
     }
@@ -329,9 +329,9 @@ function Build-Workspace {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 6: FRONTEND DEPENDENCIES
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Install-FrontendDependencies {
     Write-StepHeader "6/7" "Checking Frontend Dependencies"
@@ -339,7 +339,7 @@ function Install-FrontendDependencies {
     $studioInterfacePath = Join-Path $PSScriptRoot "add-ons\pagi-studio-ui\assets\studio-interface"
     
     if (-not (Test-Path $studioInterfacePath)) {
-        Write-Warning "Studio interface directory not found, skipping npm install"
+        Write-SovereignWarning "Studio interface directory not found, skipping npm install"
         return $true
     }
     
@@ -359,7 +359,7 @@ function Install-FrontendDependencies {
     Pop-Location
     
     if ($npmResult -ne 0) {
-        Write-Error "npm install failed with exit code $npmResult"
+        Write-SovereignError "npm install failed with exit code $npmResult"
         return $false
     }
     
@@ -367,9 +367,9 @@ function Install-FrontendDependencies {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # STEP 7: LAUNCH SOVEREIGN ECOSYSTEM
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Start-SovereignEcosystem {
     Write-StepHeader "7/7" "Launching Sovereign Ecosystem"
@@ -406,7 +406,7 @@ function Start-SovereignEcosystem {
         Start-Sleep -Seconds 2
     }
     else {
-        Write-Warning "[$componentNum/$totalComponents] Companion UI not found at: $companionPath"
+        Write-SovereignWarning "[$componentNum/$totalComponents] Companion UI not found at: $companionPath"
         Write-Info "  Skipping launch. Port 3002 reserved for future deployment."
     }
     $componentNum++
@@ -419,7 +419,7 @@ function Start-SovereignEcosystem {
         Start-Sleep -Seconds 2
     }
     else {
-        Write-Warning "[$componentNum/$totalComponents] XCURZENS UI not found at: $xcurzensPath"
+        Write-SovereignWarning "[$componentNum/$totalComponents] XCURZENS UI not found at: $xcurzensPath"
         Write-Info "  Skipping launch. Port 3003 reserved for future deployment."
     }
     
@@ -429,36 +429,36 @@ function Start-SovereignEcosystem {
     Write-Info ""
     Write-Success "Ecosystem launch initiated"
     Write-Info ""
-    Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "║  PAGI Sovereign Ecosystem is starting...                          ║" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "║  Gateway:       http://localhost:8000 (+ Qdrant on 6333)          ║" -ForegroundColor Green
-    Write-Host "║  Control Panel: http://localhost:8002                             ║" -ForegroundColor Green
+    Write-Host "+====================================================================+" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "|  PAGI Sovereign Ecosystem is starting...                          |" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "|  Gateway:       http://localhost:8000 (+ Qdrant on 6333)          |" -ForegroundColor Green
+    Write-Host "|  Control Panel: http://localhost:8002                             |" -ForegroundColor Green
     
     # Dynamic UI status display
     if (Test-Path $companionPath) {
-        Write-Host "║  Companion UI:  http://localhost:3002                             ║" -ForegroundColor Green
+        Write-Host "|  Companion UI:  http://localhost:3002                             |" -ForegroundColor Green
     }
     else {
-        Write-Host "║  Companion UI:  [Reserved - Port 3002]                            ║" -ForegroundColor DarkGray
+        Write-Host "|  Companion UI:  [Reserved - Port 3002]                            |" -ForegroundColor DarkGray
     }
     
     if (Test-Path $xcurzensPath) {
-        Write-Host "║  XCURZENS UI:   http://localhost:3003                             ║" -ForegroundColor Green
+        Write-Host "|  XCURZENS UI:   http://localhost:3003                             |" -ForegroundColor Green
     }
     else {
-        Write-Host "║  XCURZENS UI:   [Reserved - Port 3003]                            ║" -ForegroundColor DarkGray
+        Write-Host "|  XCURZENS UI:   [Reserved - Port 3003]                            |" -ForegroundColor DarkGray
     }
     
-    Write-Host "║  Studio UI:     http://localhost:3001                             ║" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "║  Qdrant Dashboard: http://localhost:6333/dashboard                ║" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "║  Close this window to stop the Studio UI.                         ║" -ForegroundColor Green
-    Write-Host "║  Other components will continue in their own windows.             ║" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "|  Studio UI:     http://localhost:3001                             |" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "|  Qdrant Dashboard: http://localhost:6333/dashboard                |" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "|  Close this window to stop the Studio UI.                         |" -ForegroundColor Green
+    Write-Host "|  Other components will continue in their own windows.             |" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "+====================================================================+" -ForegroundColor Green
     Write-Info ""
     
     # Run Studio UI in foreground
@@ -471,9 +471,9 @@ function Start-SovereignEcosystem {
     return $true
 }
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # MAIN EXECUTION
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 function Main {
     Write-SovereignHeader
@@ -494,24 +494,24 @@ function Main {
         $result = & $step
         if (-not $result) {
             Write-Host ""
-            Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Red
-            Write-Host "║                                                                    ║" -ForegroundColor Red
-            Write-Host "║  ORCHESTRATOR HALTED: Critical error encountered                  ║" -ForegroundColor Red
-            Write-Host "║                                                                    ║" -ForegroundColor Red
-            Write-Host "║  Please resolve the errors above and try again.                   ║" -ForegroundColor Red
-            Write-Host "║                                                                    ║" -ForegroundColor Red
-            Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Red
+            Write-Host "+====================================================================+" -ForegroundColor Red
+            Write-Host "|                                                                    |" -ForegroundColor Red
+            Write-Host "|  ORCHESTRATOR HALTED: Critical error encountered                  |" -ForegroundColor Red
+            Write-Host "|                                                                    |" -ForegroundColor Red
+            Write-Host "|  Please resolve the errors above and try again.                   |" -ForegroundColor Red
+            Write-Host "|                                                                    |" -ForegroundColor Red
+            Write-Host "+====================================================================+" -ForegroundColor Red
             Write-Host ""
             exit 1
         }
     }
     
     Write-Host ""
-    Write-Host "╔════════════════════════════════════════════════════════════════════╗" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "║  SOVEREIGN ORCHESTRATION COMPLETE                                  ║" -ForegroundColor Green
-    Write-Host "║                                                                    ║" -ForegroundColor Green
-    Write-Host "╚════════════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+    Write-Host "+====================================================================+" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "|  SOVEREIGN ORCHESTRATION COMPLETE                                  |" -ForegroundColor Green
+    Write-Host "|                                                                    |" -ForegroundColor Green
+    Write-Host "+====================================================================+" -ForegroundColor Green
     Write-Host ""
 }
 

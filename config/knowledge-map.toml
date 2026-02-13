@@ -203,6 +203,6 @@ batch_size = 100
 
 # Sovereign Voice Messages
 [messages]
-scribe_active = "Jamey, the Scribe is active. The 8 Knowledge Bases are no longer silent archives; they are living extensions of your 21-acre domain. Drop your data, and the system will remember."
+scribe_active = "The Creator, the Scribe is active. The 8 Knowledge Bases are no longer silent archives; they are living extensions of your 21-acre domain. Drop your data, and the system will remember."
 audit_complete = "Deep Audit complete. {files_processed} files processed, {vectors_created} vectors created across the Knowledge Bases."
 bandwidth_warning = "File exceeds 5MB threshold. Using local embeddings to preserve satellite bandwidth."

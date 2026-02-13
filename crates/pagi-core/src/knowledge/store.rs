@@ -286,7 +286,7 @@ pub struct PolicyRecord {
 /// Stored in KB-01 (Pneuma) under SOVEREIGN_IDENTITY_KEY so the SAO can address the user by name and domain.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UserPersona {
-    /// The Sovereign's name (e.g. "Jamey").
+    /// The Sovereign's name (e.g. "The Creator").
     pub sovereign_name: String,
     /// Highest rank or title (e.g. "Coach").
     pub highest_rank: String,
@@ -1005,7 +1005,7 @@ impl KnowledgeStore {
 
     /// Returns the most recent conversation turns from **KB-04 (Chronos)** for the given agent.
     ///
-    /// Keys must be prefixed with `conversation/{agent_id}/` (e.g. `conversation/jamey/1739123456789`).
+    /// Keys must be prefixed with `conversation/{agent_id}/` (e.g. `conversation/The Creator/1739123456789`).
     /// Values can be plain UTF-8 or JSON `{ "role": "user"|"assistant", "content": "..." }`.
     /// Used to inject recent chat context into the system prompt (Memory Bridge).
     pub fn get_recent_conversation(&self, agent_id: &str, limit: usize) -> String {

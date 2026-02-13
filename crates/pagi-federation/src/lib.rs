@@ -1,6 +1,6 @@
 //! Federated Communication Layer for Phoenix AGI (SAO).
 //!
-//! gRPC-based nervous system connecting Jamey (Master Orchestrator) to remote Satellites.
+//! gRPC-based nervous system connecting The Creator (Master Orchestrator) to remote Satellites.
 //! Bare-metal, mTLS-secured, binary Protocol Buffers for bandwidth efficiency.
 
 pub mod federation;

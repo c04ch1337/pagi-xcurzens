@@ -1,4 +1,4 @@
-//! mTLS (Mutual TLS) configuration for Jamey <-> Satellite links.
+//! mTLS (Mutual TLS) configuration for The Creator <-> Satellite links.
 //! Only bare-metal nodes with valid certificates can handshake.
 
 use rustls::pki_types::{CertificateDer, PrivateKeyDer};
@@ -30,7 +30,7 @@ fn load_private_key(path: &Path) -> Result<PrivateKeyDer<'static>, std::io::Erro
     Ok(key)
 }
 
-/// Build server TLS config for Jamey (Master): present server cert, require client cert (mTLS).
+/// Build server TLS config for The Creator (Master): present server cert, require client cert (mTLS).
 /// - `server_cert_path`: PEM chain (server cert + optional intermediates).
 /// - `server_key_path`: PEM private key for the server.
 /// - `client_ca_path`: PEM of CA that signed client (Satellite) certs; only those clients are accepted.
@@ -59,10 +59,10 @@ pub fn server_tls_config(
     Ok(Arc::new(config))
 }
 
-/// Build client TLS config for a Satellite: present client cert, trust Jamey's server via `ca_path`.
+/// Build client TLS config for a Satellite: present client cert, trust The Creator's server via `ca_path`.
 /// - `client_cert_path`: PEM chain for the client.
 /// - `client_key_path`: PEM private key for the client.
-/// - `ca_path`: PEM of CA that signed the server (Jamey) cert.
+/// - `ca_path`: PEM of CA that signed the server (The Creator) cert.
 pub fn client_tls_config(
     client_cert_path: &Path,
     client_key_path: &Path,

@@ -13,11 +13,11 @@ function Invoke-LogRedaction {
     param([string]$FilePath)
     
     if (-not (Test-Path $FilePath)) {
-        Write-Host "❌ File not found: $FilePath" -ForegroundColor Red
+        Write-Host "[X] File not found: $FilePath" -ForegroundColor Red
         return $false
     }
     
-    Write-Host "🔒 Redacting: $FilePath" -ForegroundColor Cyan
+    Write-Host "[REDACT] Redacting: $FilePath" -ForegroundColor Cyan
     
     $content = Get-Content $FilePath -Raw
     
@@ -52,14 +52,14 @@ function Invoke-LogRedaction {
     $redactedFile = $FilePath -replace '\.log$', '.redacted.log'
     $content | Out-File -FilePath $redactedFile -Encoding UTF8
     
-    Write-Host "✓ Saved to: $redactedFile" -ForegroundColor Green
+    Write-Host "[OK] Saved to: $redactedFile" -ForegroundColor Green
     return $true
 }
 
 # Main execution
 Write-Host ""
-Write-Host "🔒 Phoenix Log Redaction Tool" -ForegroundColor Magenta
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+Write-Host "Phoenix Log Redaction Tool" -ForegroundColor Magenta
+Write-Host ("=" * 55) -ForegroundColor DarkGray
 Write-Host ""
 
 if ($All) {
@@ -68,7 +68,7 @@ if ($All) {
     $logsDir = Join-Path $pagiDir "logs"
     
     if (-not (Test-Path $logsDir)) {
-        Write-Host "❌ Logs directory not found: $logsDir" -ForegroundColor Red
+        Write-Host "[X] Logs directory not found: $logsDir" -ForegroundColor Red
         Write-Host "   Have you run Phoenix yet?" -ForegroundColor Yellow
         exit 1
     }
@@ -76,7 +76,7 @@ if ($All) {
     $logFiles = Get-ChildItem -Path $logsDir -Filter "*.log" -File
     
     if ($logFiles.Count -eq 0) {
-        Write-Host "⚠️  No log files found in $logsDir" -ForegroundColor Yellow
+        Write-Host "[!] No log files found in $logsDir" -ForegroundColor Yellow
         exit 0
     }
     
@@ -91,8 +91,8 @@ if ($All) {
     }
     
     Write-Host ""
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    Write-Host "✓ Redacted $successCount/$($logFiles.Count) log files" -ForegroundColor Green
+    Write-Host ("=" * 55) -ForegroundColor DarkGray
+    Write-Host "[OK] Redacted $successCount/$($logFiles.Count) log files" -ForegroundColor Green
     Write-Host ""
     Write-Host "Redacted logs saved with .redacted.log extension" -ForegroundColor Cyan
     Write-Host "You can now safely share these files for debugging" -ForegroundColor Cyan

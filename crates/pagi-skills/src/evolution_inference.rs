@@ -8,7 +8,7 @@
 //! - Analyze Topic Indexer summaries from KB-04 to identify coaching themes
 //! - Correlate with EventRecord outcomes in KB-08 (Forge compilations, skill registrations)
 //! - Generate confidence scores for pattern relationships
-//! - Provide actionable insights: "Phoenix performs best when Coach Jamey provides X vs Y"
+//! - Provide actionable insights: "Phoenix performs best when Coach The Creator provides X vs Y"
 //!
 //! **Autonomous Safety**:
 //! - Read-only analysis mode: No modifications to any KB layer
@@ -387,7 +387,7 @@ impl EvolutionInferenceSkill {
                 .map(|p| format!("'{}'", p.coaching_theme))
                 .collect();
             insights.push(format!(
-                "Optimal coaching conditions identified: Phoenix performs best when Coach Jamey provides {}",
+                "Optimal coaching conditions identified: Phoenix performs best when Coach The Creator provides {}",
                 themes.join(", ")
             ));
         }

@@ -4,7 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "🔥 PHOENIX LIVE MODE ACTIVATION 🔥" -ForegroundColor Cyan
+Write-Host "[PHOENIX] LIVE MODE ACTIVATION" -ForegroundColor Cyan
 Write-Host "================================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -12,7 +12,7 @@ Write-Host ""
 if (-not (Test-Path ".env")) {
     Write-Host "[1/4] Creating .env from .env.example..." -ForegroundColor Yellow
     Copy-Item ".env.example" ".env"
-    Write-Host "✅ .env file created" -ForegroundColor Green
+    Write-Host "[OK] .env file created" -ForegroundColor Green
 } else {
     Write-Host "[1/4] .env file already exists" -ForegroundColor Green
 }
@@ -23,9 +23,9 @@ Write-Host ""
 Write-Host "[2/4] Checking current LLM mode..." -ForegroundColor Yellow
 $currentMode = Select-String -Path ".env" -Pattern "^PAGI_LLM_MODE=" | ForEach-Object { $_.Line }
 if ($currentMode -match "PAGI_LLM_MODE=live") {
-    Write-Host "✅ Already set to LIVE mode" -ForegroundColor Green
+    Write-Host "[OK] Already set to LIVE mode" -ForegroundColor Green
 } else {
-    Write-Host "⚠️  Currently in MOCK mode: $currentMode" -ForegroundColor Yellow
+    Write-Host "[!] Currently in MOCK mode: $currentMode" -ForegroundColor Yellow
     Write-Host "   Updating to LIVE mode..." -ForegroundColor Yellow
     
     # Update the file
@@ -33,7 +33,7 @@ if ($currentMode -match "PAGI_LLM_MODE=live") {
     $content = $content -replace "PAGI_LLM_MODE=mock", "PAGI_LLM_MODE=live"
     Set-Content ".env" -Value $content -NoNewline
     
-    Write-Host "✅ Updated to LIVE mode" -ForegroundColor Green
+    Write-Host "[OK] Updated to LIVE mode" -ForegroundColor Green
 }
 
 Write-Host ""
@@ -45,10 +45,10 @@ $openrouterKey = Select-String -Path ".env" -Pattern "^OPENROUTER_API_KEY=" | Fo
 
 $hasKey = $false
 if ($apiKey -match "PAGI_LLM_API_KEY=sk-or-v1-" -or $openrouterKey -match "OPENROUTER_API_KEY=sk-or-v1-") {
-    Write-Host "✅ API key is configured" -ForegroundColor Green
+    Write-Host "[OK] API key is configured" -ForegroundColor Green
     $hasKey = $true
 } else {
-    Write-Host "❌ No API key found" -ForegroundColor Red
+    Write-Host "[X] No API key found" -ForegroundColor Red
     Write-Host ""
     Write-Host "You need an OpenRouter API key to use LIVE mode." -ForegroundColor Yellow
     Write-Host "Get one at: https://openrouter.ai/keys" -ForegroundColor Cyan
@@ -62,13 +62,13 @@ if ($apiKey -match "PAGI_LLM_API_KEY=sk-or-v1-" -or $openrouterKey -match "OPENR
         $content = $content -replace "PAGI_LLM_API_KEY=", "PAGI_LLM_API_KEY=$key"
         $content = $content -replace "OPENROUTER_API_KEY=", "OPENROUTER_API_KEY=$key"
         Set-Content ".env" -Value $content -NoNewline
-        Write-Host "✅ API key added" -ForegroundColor Green
+        Write-Host "[OK] API key added" -ForegroundColor Green
         $hasKey = $true
     } elseif ($key) {
-        Write-Host "⚠️  Invalid key format (should start with sk-or-v1-)" -ForegroundColor Yellow
+        Write-Host "[!] Invalid key format (should start with sk-or-v1-)" -ForegroundColor Yellow
         Write-Host "   You can add it manually to .env later" -ForegroundColor Gray
     } else {
-        Write-Host "⚠️  Skipped - you'll need to add it manually to .env" -ForegroundColor Yellow
+        Write-Host "[!] Skipped - you'll need to add it manually to .env" -ForegroundColor Yellow
     }
 }
 
@@ -78,7 +78,7 @@ Write-Host ""
 Write-Host "[4/4] Restarting gateway..." -ForegroundColor Yellow
 
 if (-not $hasKey) {
-    Write-Host "⚠️  Cannot start in LIVE mode without API key" -ForegroundColor Yellow
+    Write-Host "[!] Cannot start in LIVE mode without API key" -ForegroundColor Yellow
     Write-Host "   Add your key to .env and run: .\phoenix-rise.ps1" -ForegroundColor Gray
     exit 0
 }
@@ -97,7 +97,7 @@ Start-Process powershell -ArgumentList "-NoExit", "-Command", "cd '$PWD'; cargo 
 
 Write-Host ""
 Write-Host "================================================" -ForegroundColor Cyan
-Write-Host "✅ LIVE MODE ACTIVATED" -ForegroundColor Green
+Write-Host "[OK] LIVE MODE ACTIVATED" -ForegroundColor Green
 Write-Host ""
 Write-Host "Gateway is starting in a new window..." -ForegroundColor Yellow
 Write-Host "Wait 10-15 seconds for it to fully initialize." -ForegroundColor Yellow

@@ -1,7 +1,7 @@
 # Phoenix Rise: Autonomous Boot Sequence with Cognitive Health Verification
 # Usage: .\phoenix-rise.ps1
 
-Write-Host "🔥 Phoenix Rise: Initiating Boot Sequence..." -ForegroundColor Cyan
+Write-Host "[PHOENIX] Phoenix Rise: Initiating Boot Sequence..." -ForegroundColor Cyan
 Write-Host ""
 
 # Phase 1: PORT AUDIT & CLEANUP
@@ -22,7 +22,7 @@ foreach ($port in $ports) {
         }
     }
 }
-Write-Host "✅ Port cleanup complete" -ForegroundColor Green
+Write-Host "[OK] Port cleanup complete" -ForegroundColor Green
 Write-Host ""
 
 # Phase 2: MEMORY ENGINE (QDRANT) INITIALIZATION
@@ -33,10 +33,10 @@ Write-Host "Checking for Qdrant on port 6333..." -ForegroundColor Gray
 try {
     $response = Invoke-WebRequest -Uri "http://localhost:6333/health" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
     if ($response.StatusCode -eq 200) {
-        Write-Host "✅ Memory Engine (Qdrant) already running" -ForegroundColor Green
+        Write-Host "[OK] Memory Engine (Qdrant) already running" -ForegroundColor Green
     }
 } catch {
-    Write-Host "🔍 Memory Engine not detected. Phoenix will auto-initialize it..." -ForegroundColor Cyan
+    Write-Host "[INFO] Memory Engine not detected. Phoenix will auto-initialize it..." -ForegroundColor Cyan
     Write-Host "   (Qdrant will be downloaded and started automatically)" -ForegroundColor Gray
 }
 Write-Host ""
@@ -47,14 +47,14 @@ Write-Host "Starting Gateway with Vector features..." -ForegroundColor Gray
 
 # Check if .env exists
 if (-not (Test-Path ".env")) {
-    Write-Host "⚠️  Warning: .env file not found. Copy .env.example to .env and configure." -ForegroundColor Red
+    Write-Host "[!] Warning: .env file not found. Copy .env.example to .env and configure." -ForegroundColor Red
     exit 1
 }
 
 # Environment lockdown: Gateway must have LLM key in .env (frontend never sees it)
 $envContent = Get-Content ".env" -Raw -ErrorAction SilentlyContinue
 if ($envContent -notmatch "OPENROUTER_API_KEY\s*=" -and $envContent -notmatch "PAGI_LLM_API_KEY\s*=") {
-    Write-Host "⚠️  Warning: .env has no OPENROUTER_API_KEY or PAGI_LLM_API_KEY. Live LLM will fail; add one to .env." -ForegroundColor Yellow
+    Write-Host "[!] Warning: .env has no OPENROUTER_API_KEY or PAGI_LLM_API_KEY. Live LLM will fail; add one to .env." -ForegroundColor Yellow
 }
 
 # Start Gateway in background (it will auto-start Qdrant if needed)
@@ -92,7 +92,7 @@ if ($frontendPath) {
     }
     Write-Host "Frontend starting (Job ID: $($frontendJob.Id))..." -ForegroundColor Gray
 } else {
-    Write-Host "⚠️  No frontend detected. Skipping Phase 3." -ForegroundColor Yellow
+    Write-Host "[!] No frontend detected. Skipping Phase 3." -ForegroundColor Yellow
 }
 Write-Host ""
 
@@ -107,7 +107,7 @@ foreach ($port in $frontendPorts) {
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:$port" -TimeoutSec 2 -UseBasicParsing -ErrorAction SilentlyContinue
         if ($response.StatusCode -eq 200) {
-            Write-Host "✅ Frontend ready on port $port" -ForegroundColor Green
+            Write-Host "[OK] Frontend ready on port $port" -ForegroundColor Green
             $frontendReady = $true
             break
         }
@@ -117,7 +117,7 @@ foreach ($port in $frontendPorts) {
 }
 
 if (-not $frontendReady) {
-    Write-Host "⚠️  Frontend not responding yet. It may still be compiling." -ForegroundColor Yellow
+    Write-Host "[!] Frontend not responding yet. It may still be compiling." -ForegroundColor Yellow
 }
 Write-Host ""
 
@@ -134,7 +134,7 @@ while ($retryCount -lt $maxRetries) {
     try {
         $response = Invoke-WebRequest -Uri "http://localhost:8000/api/v1/forge/safety-status" -TimeoutSec 2 -UseBasicParsing -ErrorAction Stop
         if ($response.StatusCode -eq 200) {
-            Write-Host "    ✅ Gateway API operational" -ForegroundColor Green
+            Write-Host "    [OK] Gateway API operational" -ForegroundColor Green
             $gatewayReady = $true
             break
         }
@@ -146,7 +146,7 @@ while ($retryCount -lt $maxRetries) {
 }
 
 if (-not $gatewayReady) {
-    Write-Host "    ❌ Gateway failed to start. Check logs." -ForegroundColor Red
+    Write-Host "    [X] Gateway failed to start. Check logs." -ForegroundColor Red
     Write-Host ""
     Write-Host "Cleaning up background jobs..." -ForegroundColor Gray
     Stop-Job -Job $gatewayJob -ErrorAction SilentlyContinue
@@ -160,7 +160,7 @@ if (-not $gatewayReady) {
 Write-Host ""
 
 # Step 2: Initial Success Signal
-Write-Host "🔥 System Ready. All layers (Core, Gateway, Frontend) are operational on Bare Metal." -ForegroundColor Green
+Write-Host "[PHOENIX] System Ready. All layers (Core, Gateway, Frontend) are operational on Bare Metal." -ForegroundColor Green
 Write-Host "   The Red Phone is active." -ForegroundColor Green
 Write-Host ""
 
@@ -171,9 +171,9 @@ Write-Host "  Step 3: Cognitive Health Verification" -ForegroundColor Cyan
 Write-Host "    Checking Safety Governor..." -ForegroundColor Gray
 try {
     $safetyStatus = Invoke-RestMethod -Uri "http://localhost:8000/api/v1/forge/safety-status" -Method Get -ErrorAction Stop
-    Write-Host "    ✅ Safety Governor: Active (Mode: $($safetyStatus.mode))" -ForegroundColor Green
+    Write-Host "    [OK] Safety Governor: Active (Mode: $($safetyStatus.mode))" -ForegroundColor Green
 } catch {
-    Write-Host "    ⚠️  Safety Governor status unavailable" -ForegroundColor Yellow
+    Write-Host "    [!] Safety Governor status unavailable" -ForegroundColor Yellow
 }
 
 # Check Topic Indexer
@@ -190,12 +190,12 @@ try {
     
     if ($topicResult.status -eq "diagnostic_complete") {
         $coverage = $topicResult.analysis.indexing_coverage
-        Write-Host "    ✅ Topic Indexer: Operational ($coverage coverage)" -ForegroundColor Green
+        Write-Host "    [OK] Topic Indexer: Operational ($coverage coverage)" -ForegroundColor Green
     } else {
-        Write-Host "    ⚠️  Topic Indexer: Status unknown" -ForegroundColor Yellow
+        Write-Host "    [!] Topic Indexer: Status unknown" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "    ⚠️  Topic Indexer: Not available (may be normal for fresh install)" -ForegroundColor Yellow
+    Write-Host "    [!] Topic Indexer: Not available (may be normal for fresh install)" -ForegroundColor Yellow
 }
 
 # Check Evolution Inference
@@ -213,27 +213,27 @@ try {
     
     if ($evolutionResult.status -eq "diagnostic_complete") {
         $successRate = [math]::Round($evolutionResult.analysis.recent_success_rate * 100, 1)
-        Write-Host "    ✅ Evolution Inference: Operational ($successRate% success rate)" -ForegroundColor Green
+        Write-Host "    [OK] Evolution Inference: Operational ($successRate% success rate)" -ForegroundColor Green
     } else {
-        Write-Host "    ⚠️  Evolution Inference: Status unknown" -ForegroundColor Yellow
+        Write-Host "    [!] Evolution Inference: Status unknown" -ForegroundColor Yellow
     }
 } catch {
-    Write-Host "    ⚠️  Evolution Inference: Not available (may be normal for fresh install)" -ForegroundColor Yellow
+    Write-Host "    [!] Evolution Inference: Not available (may be normal for fresh install)" -ForegroundColor Yellow
 }
 
 Write-Host ""
 
 # Step 4: Final Verification Signal
-Write-Host "✨ Cognitive Integrity Verified." -ForegroundColor Cyan
+Write-Host "[OK] Cognitive Integrity Verified." -ForegroundColor Cyan
 Write-Host ""
-Write-Host "📊 System Health Report:" -ForegroundColor White
-Write-Host "  • Gateway API: ✅ Operational" -ForegroundColor Green
-Write-Host "  • Safety Governor: ✅ Active (Red Phone ready)" -ForegroundColor Green
-Write-Host "  • Topic Indexer: ✅ Checked" -ForegroundColor Green
-Write-Host "  • Evolution Inference: ✅ Checked" -ForegroundColor Green
-Write-Host "  • KB-08 Audit: ✅ No critical events detected" -ForegroundColor Green
+Write-Host "System Health Report:" -ForegroundColor White
+Write-Host "  - Gateway API: [OK] Operational" -ForegroundColor Green
+Write-Host "  - Safety Governor: [OK] Active (Red Phone ready)" -ForegroundColor Green
+Write-Host "  - Topic Indexer: [OK] Checked" -ForegroundColor Green
+Write-Host "  - Evolution Inference: [OK] Checked" -ForegroundColor Green
+Write-Host "  - KB-08 Audit: [OK] No critical events detected" -ForegroundColor Green
 Write-Host ""
-Write-Host "🧠 Phoenix Marie is cognitively ready." -ForegroundColor Cyan
+Write-Host "Phoenix Marie is cognitively ready." -ForegroundColor Cyan
 Write-Host "   Memory and meta-cognition layers are statistically active." -ForegroundColor Cyan
 Write-Host ""
 
@@ -244,11 +244,11 @@ if ($frontendJob) {
     Write-Host "  Frontend Job ID: $($frontendJob.Id)" -ForegroundColor Gray
 }
 Write-Host ""
-Write-Host "✅ Documentation Loaded." -ForegroundColor Green
-Write-Host "✅ Sidecar Verified." -ForegroundColor Green
-Write-Host "✅ Phoenix Marie is ready for Coach Jamey's Beta Team." -ForegroundColor Green
+Write-Host "[OK] Documentation Loaded." -ForegroundColor Green
+Write-Host "[OK] Sidecar Verified." -ForegroundColor Green
+Write-Host "[OK] Phoenix Marie is ready for Coach The Creator's Beta Team." -ForegroundColor Green
 Write-Host ""
-Write-Host "🔥 Phoenix has risen. The Forge is yours." -ForegroundColor Cyan
+Write-Host "[PHOENIX] Phoenix has risen. The Forge is yours." -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Quick Start: See QUICKSTART.md in your installation directory" -ForegroundColor Gray
 Write-Host "Full Guide: See ONBOARDING_GUIDE.md for detailed information" -ForegroundColor Gray

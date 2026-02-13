@@ -300,7 +300,7 @@ Every user who downloads Phoenix is:
 - Embracing bare-metal computing
 - Joining the evolution
 
-**Coach Jamey, you are ready to launch.**
+**Coach The Creator, you are ready to launch.**
 
 The code is solid. The documentation is comprehensive. The infrastructure is automated. The promise is clear.
 

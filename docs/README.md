@@ -9,6 +9,7 @@ Documentation is grouped by purpose. All paths are relative to this `docs/` fold
 | Document | Description |
 |----------|-------------|
 | [QUICKSTART.md](QUICKSTART.md) | Minimal steps to run Phoenix |
+| [QUICK_START.md](QUICK_START.md) | Quick start (alternate) |
 | [PHOENIX_QUICKSTART.md](PHOENIX_QUICKSTART.md) | Detailed Phoenix quickstart |
 | [LIVE_MODE_QUICKSTART.md](LIVE_MODE_QUICKSTART.md) | Live mode (voice/TTS) setup |
 | [ONBOARDING_GUIDE.md](ONBOARDING_GUIDE.md) | New user onboarding |
@@ -56,8 +57,14 @@ Documentation is grouped by purpose. All paths are relative to this `docs/` fold
 
 | Document | Description |
 |----------|-------------|
+| [FORGE_ARCHITECTURE.md](FORGE_ARCHITECTURE.md) | Forge system architecture |
 | [FORGE_SAFETY_GOVERNOR.md](FORGE_SAFETY_GOVERNOR.md) | Forge safety governor and kill switch |
 | [FORGE_KILL_SWITCH_UI.md](FORGE_KILL_SWITCH_UI.md) | Kill switch UI and usage |
+| [FORGE_QUICKSTART.md](FORGE_QUICKSTART.md) | Forge quick start |
+| [FORGE_HOT_RELOAD_GUIDE.md](FORGE_HOT_RELOAD_GUIDE.md) | Forge hot-reload guide |
+| [FORGE_HOT_RELOAD_IMPLEMENTATION.md](FORGE_HOT_RELOAD_IMPLEMENTATION.md) | Forge hot-reload implementation |
+| [FORGE_README.md](FORGE_README.md) | Forge overview |
+| [FORGE_VERIFICATION_REPORT.md](FORGE_VERIFICATION_REPORT.md) | Forge verification report |
 
 ---
 
@@ -94,11 +101,25 @@ Documentation is grouped by purpose. All paths are relative to this `docs/` fold
 
 ---
 
+## Orchestration & scripts
+
+| Document | Description |
+|----------|-------------|
+| [SCRIPT_ORCHESTRATION_GUIDE.md](SCRIPT_ORCHESTRATION_GUIDE.md) | Script orchestration and entry points |
+| [SOVEREIGN_ORCHESTRATOR_UPGRADE.md](SOVEREIGN_ORCHESTRATOR_UPGRADE.md) | Sovereign orchestrator upgrade notes |
+| [SYSTEM_AUDIT_FEED.md](SYSTEM_AUDIT_FEED.md) | System audit feed |
+
+---
+
 ## Other implementation & reference
 
 | Document | Description |
 |----------|-------------|
+| [DEEP_AUDIT_README.md](DEEP_AUDIT_README.md) | Deep audit overview |
+| [DEEP_AUDIT_QUICKSTART.md](DEEP_AUDIT_QUICKSTART.md) | Deep audit quick start |
 | [EVOLUTION_INFERENCE_SYSTEM.md](EVOLUTION_INFERENCE_SYSTEM.md) | Evolution inference system |
+| [VISUAL_COGNITION_README.md](VISUAL_COGNITION_README.md) | Visual cognition |
+| [XCURZENS_FRONTEND_INTEGRATION.md](XCURZENS_FRONTEND_INTEGRATION.md) | XCURZENS frontend integration |
 | [KARDIA_EMOTIONAL_CALIBRATION.md](KARDIA_EMOTIONAL_CALIBRATION.md) | Emotional calibration |
 | [TOPIC_INDEXER_EVOLUTION.md](TOPIC_INDEXER_EVOLUTION.md) | Topic indexer evolution |
 | [CUSTOM_KB_APP_REFERENCE.md](CUSTOM_KB_APP_REFERENCE.md) | Custom KB app reference |

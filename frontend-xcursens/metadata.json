@@ -1,0 +1,9 @@
+
+{
+  "name": "XCURZENS Traveler UI - The Scout",
+  "description": "A high-performance sovereign agentic monolith interface for coastal adventures, featuring real-time streaming responses and geolocation-aware scouting.",
+  "requestFramePermissions": [
+    "geolocation",
+    "microphone"
+  ]
+}

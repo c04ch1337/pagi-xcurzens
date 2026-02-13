@@ -142,18 +142,18 @@ try {
     if ($createResponse.success -or $createResponse.cargo_check_ok) {
         Write-ForgeSuccess "Skill created successfully!"
         Write-Host ""
-        Write-Host "📋 Skill Details:" -ForegroundColor Cyan
+        Write-Host "Skill Details:" -ForegroundColor Cyan
         Write-Host "  Name:        $($createResponse.skill_name)" -ForegroundColor White
         Write-Host "  Module:      $($createResponse.module_name)" -ForegroundColor White
         Write-Host "  File:        $($createResponse.file_path)" -ForegroundColor White
         
         if ($createResponse.hot_reloaded) {
-            Write-Host "  Hot-Reload:  ✓ Activated" -ForegroundColor Green
+            Write-Host "  Hot-Reload:  [OK] Activated" -ForegroundColor Green
             Write-Host "  Compile Time: $($createResponse.compilation_time_ms)ms" -ForegroundColor White
             Write-Host ""
             Write-ForgeSuccess "Skill is ready for immediate use!"
         } else {
-            Write-Host "  Hot-Reload:  ✗ Not activated" -ForegroundColor Yellow
+            Write-Host "  Hot-Reload:  [X] Not activated" -ForegroundColor Yellow
             Write-Host ""
             Write-ForgeWarning "Restart Gateway to activate: .\pagi-down.ps1 && .\pagi-up.ps1"
         }
@@ -192,10 +192,10 @@ try {
     $listResponse = Invoke-RestMethod -Uri "$GatewayUrl/api/v1/forge/hot-reload/list" -Method Get -ErrorAction Stop
     if ($listResponse.count -gt 0) {
         Write-Host ""
-        Write-Host "🔥 Hot-Reloaded Skills ($($listResponse.count)):" -ForegroundColor Cyan
+        Write-Host "Hot-Reloaded Skills ($($listResponse.count)):" -ForegroundColor Cyan
         foreach ($skill in $listResponse.skills) {
             $loadedTime = [DateTimeOffset]::FromUnixTimeSeconds($skill.loaded_at).LocalDateTime
-            Write-Host "  • $($skill.skill_name)" -ForegroundColor White
+            Write-Host "  - $($skill.skill_name)" -ForegroundColor White
             Write-Host "    Module: $($skill.module_name)" -ForegroundColor Gray
             Write-Host "    Loaded: $loadedTime" -ForegroundColor Gray
         }

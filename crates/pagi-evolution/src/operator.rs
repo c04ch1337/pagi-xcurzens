@@ -3,7 +3,7 @@
 //! This module implements the Human-in-the-Loop (HITL) approval system
 //! for the Forge's self-modification capabilities. It prevents Phoenix
 //! from entering recursive compile loops by requiring explicit authorization
-//! from Coach Jamey before any code changes are compiled.
+//! from Coach The Creator before any code changes are compiled.
 //!
 //! ## Architecture
 //!
@@ -33,9 +33,9 @@ const FORGE_APPROVAL_PREFIX: &str = "forge_approval/";
 pub enum ApprovalStatus {
     /// Awaiting human authorization
     Pending,
-    /// Authorized by Coach Jamey
+    /// Authorized by Coach The Creator
     Authorized,
-    /// Denied by Coach Jamey
+    /// Denied by Coach The Creator
     Denied,
 }
 
@@ -126,7 +126,7 @@ impl ProposedChange {
         println!("{}", "=".repeat(80));
     }
 
-    /// Prompt Coach Jamey for approval
+    /// Prompt Coach The Creator for approval
     pub fn request_approval(&mut self) -> io::Result<bool> {
         self.display();
 
@@ -141,13 +141,13 @@ impl ProposedChange {
             match input.as_str() {
                 "y" | "yes" => {
                     self.status = ApprovalStatus::Authorized;
-                    info!("✅ Change AUTHORIZED by Coach Jamey: {}", self.file_path);
+                    info!("✅ Change AUTHORIZED by Coach The Creator: {}", self.file_path);
                     println!("\n✅ AUTHORIZED - Proceeding with compilation...\n");
                     return Ok(true);
                 }
                 "n" | "no" => {
                     self.status = ApprovalStatus::Denied;
-                    warn!("❌ Change DENIED by Coach Jamey: {}", self.file_path);
+                    warn!("❌ Change DENIED by Coach The Creator: {}", self.file_path);
                     println!("\n❌ DENIED - Aborting compilation.\n");
                     return Ok(false);
                 }

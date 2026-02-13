@@ -398,7 +398,7 @@ impl SovereignOperator {
 
         // Check if the change was authorized
         if proposed_change.status != pagi_evolution::ApprovalStatus::Authorized {
-            warn!("❌ Compilation DENIED by Coach Jamey for skill: {}", name);
+            warn!("❌ Compilation DENIED by Coach The Creator for skill: {}", name);
             return Err(SkillError::Load(format!(
                 "Compilation denied by operator for skill: {}",
                 name
@@ -406,7 +406,7 @@ impl SovereignOperator {
         }
 
         if safety_enabled {
-            info!("✅ Compilation AUTHORIZED by Coach Jamey for skill: {}", name);
+            info!("✅ Compilation AUTHORIZED by Coach The Creator for skill: {}", name);
         } else {
             info!("⚡ Autonomous compilation proceeding for skill: {}", name);
         }

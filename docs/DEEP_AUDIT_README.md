@@ -171,7 +171,7 @@ curl -X POST http://localhost:8000/api/v1/audit/ingest
 
 ## Sovereign Voice
 
-> "Jamey, the Scribe is active. The 8 Knowledge Bases are no longer silent archives; they are living extensions of your 21-acre domain. Drop your data, and the system will remember."
+> "The Creator, the Scribe is active. The 8 Knowledge Bases are no longer silent archives; they are living extensions of your 21-acre domain. Drop your data, and the system will remember."
 
 ## Directory Structure
 

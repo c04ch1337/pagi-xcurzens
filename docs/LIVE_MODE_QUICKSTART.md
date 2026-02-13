@@ -154,7 +154,7 @@ When Phoenix is in **LIVE mode**, you'll see:
 ✅ Chat Response Received:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Coach Jamey, I am operating in LIVE mode with full access 
+Coach The Creator, I am operating in LIVE mode with full access 
 to the Sovereign Stack. Our last conversation was about...
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 

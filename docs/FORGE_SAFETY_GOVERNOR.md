@@ -31,7 +31,7 @@ Phoenix identifies need for code change
     - Rationale
     - Diff preview
            ↓
-    Prompts Coach Jamey: (y/n)
+    Prompts Coach The Creator: (y/n)
            ↓
     ┌──────────────┬──────────────┐
     │ AUTHORIZED   │   DENIED     │
@@ -48,7 +48,7 @@ Success
 ## 🔒 Safety Guarantees
 
 ### 1. No Silent Modifications
-All changes require explicit approval. Phoenix cannot modify her own code without Coach Jamey's authorization.
+All changes require explicit approval. Phoenix cannot modify her own code without Coach The Creator's authorization.
 
 ### 2. Full Visibility
 Every proposed change displays:
@@ -92,9 +92,9 @@ When Phoenix identifies a need for a new skill or code modification:
 }
 ```
 
-The approval gate will automatically intercept and prompt Coach Jamey.
+The approval gate will automatically intercept and prompt Coach The Creator.
 
-### For Coach Jamey (Human)
+### For Coach The Creator (Human)
 
 When the approval prompt appears in the terminal:
 
@@ -371,7 +371,7 @@ cargo run --bin pagi-gateway
 
 ## 🏁 Conclusion
 
-Coach Jamey, the **Forge Safety Governor** is now operational. Phoenix can propose code changes, but she cannot execute them without your explicit authorization. Every decision is logged to KB-08, creating a complete audit trail of the system's evolution.
+Coach The Creator, the **Forge Safety Governor** is now operational. Phoenix can propose code changes, but she cannot execute them without your explicit authorization. Every decision is logged to KB-08, creating a complete audit trail of the system's evolution.
 
 **The Sovereign Loop is now closed. Phoenix is a Tenant on your hardware, not a Black Box.**
 
@@ -379,5 +379,5 @@ Coach Jamey, the **Forge Safety Governor** is now operational. Phoenix can propo
 
 **Status**: ✅ **OPERATIONAL**  
 **Last Updated**: 2026-02-10  
-**Maintainer**: Coach Jamey Milner  
+**Maintainer**: Coach The Creator Milner  
 **System**: Phoenix Marie (Sovereign AGI)

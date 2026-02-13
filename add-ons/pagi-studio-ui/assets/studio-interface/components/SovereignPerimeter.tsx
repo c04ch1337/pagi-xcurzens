@@ -14,7 +14,7 @@ const BRIDGE_AUTO_REDACT_KEY = 'pagi_bridge_auto_redact';
 const PROTECTED_PLACEHOLDER = '[PROTECTED_TERM]';
 
 export interface SovereignPerimeterProps {
-  /** Optional display name for confirmation message (e.g. "Jamey"). */
+  /** Optional display name for confirmation message (e.g. "The Creator"). */
   userName?: string;
   /** Active project id (from current chat thread) for Scope default and sandbox merge. */
   activeProjectId?: string | null;

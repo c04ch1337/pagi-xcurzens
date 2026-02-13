@@ -115,7 +115,7 @@
 |-------------|---------------|--------------|
 | - | - | - |
 
-**Rewards**: Early access to v0.2.0, credited in CONTRIBUTORS.md, direct line to Coach Jamey
+**Rewards**: Early access to v0.2.0, credited in CONTRIBUTORS.md, direct line to Coach The Creator
 
 ---
 
@@ -322,8 +322,8 @@ The Sovereign Beta begins now.
 
 ---
 
-**Coach Jamey, this is your Mission Control dashboard. Update it daily, review it weekly, and let it guide your beta journey.**
+**Coach The Creator, this is your Mission Control dashboard. Update it daily, review it weekly, and let it guide your beta journey.**
 
 **Last Updated**: [CURRENT_DATE]  
-**Dashboard Maintainer**: Coach Jamey  
+**Dashboard Maintainer**: Coach The Creator  
 **Status**: 🟡 Pre-Launch → 🟢 Active Beta → 🔵 Stable Release

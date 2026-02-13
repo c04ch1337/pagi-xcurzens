@@ -49,7 +49,7 @@ Phoenix can self-modify code via the **Sovereign Operator (Forge)**. The **Forge
 * **Emergency kill switch:** Run `.\forge-kill-switch.ps1` (Windows) or `./forge-kill-switch.sh` (Linux/macOS) to re-enable safety and stop active Forge builds.
 * **Sovereign Autonomy:** Runtime control of Forge safety (HITL vs autonomous), auto-revert on compile failure, and multi-layer control—see **[SOVEREIGN_AUTONOMY_SYSTEM.md](docs/SOVEREIGN_AUTONOMY_SYSTEM.md)**.
 
-See **[FORGE_SAFETY_GOVERNOR.md](docs/FORGE_SAFETY_GOVERNOR.md)** for usage, configuration, and testing.
+See [docs/FORGE_SAFETY_GOVERNOR.md](docs/FORGE_SAFETY_GOVERNOR.md) and [docs/FORGE_ARCHITECTURE.md](docs/FORGE_ARCHITECTURE.md) for usage, configuration, and testing.
 
 ---
 
@@ -91,7 +91,7 @@ This unified script automatically handles:
 - ✅ Frontend dependencies
 - ✅ Coordinated launch (Gateway → Control Panel → Studio UI)
 
-**See:** [`QUICK_START.md`](./QUICK_START.md) for one-liners and [`SCRIPT_ORCHESTRATION_GUIDE.md`](./SCRIPT_ORCHESTRATION_GUIDE.md) for complete documentation.
+**See:** [docs/QUICK_START.md](docs/QUICK_START.md) for one-liners and [docs/SCRIPT_ORCHESTRATION_GUIDE.md](docs/SCRIPT_ORCHESTRATION_GUIDE.md) for complete documentation. Full doc index: [docs/README.md](docs/README.md).
 
 ### Alternative Boot Methods
 

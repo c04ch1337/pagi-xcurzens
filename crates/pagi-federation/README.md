@@ -1,17 +1,17 @@
 # pagi-federation
 
-Federated Communication Layer for Phoenix AGI (SAO): gRPC-based nervous system connecting **Jamey** (Master Orchestrator) to remote Satellites. Bare-metal, optional mTLS, binary Protocol Buffers.
+Federated Communication Layer for Phoenix AGI (SAO): gRPC-based nervous system connecting **The Creator** (Master Orchestrator) to remote Satellites. Bare-metal, optional mTLS, binary Protocol Buffers.
 
 ## Protocol
 
 - **PhoenixService** (see `proto/phoenix.proto`):
   - `RegisterNode`: Satellites announce Role (RedTeam, Finance, etc.) and capabilities.
-  - `SubmitTask`: Bi-directional stream — Jamey sends `Task`, Satellites return `TaskResult` (logged as "Remote Intelligence").
+  - `SubmitTask`: Bi-directional stream — The Creator sends `Task`, Satellites return `TaskResult` (logged as "Remote Intelligence").
   - `Heartbeat`: Satellites report bandwidth/CPU every 30s.
 
 ## Usage
 
-### Jamey (Master)
+### The Creator (Master)
 
 1. Create state (optionally with `MemoryManager` for Remote Intelligence logging):
    ```rust
@@ -19,7 +19,7 @@ Federated Communication Layer for Phoenix AGI (SAO): gRPC-based nervous system c
    let server = Arc::new(MasterServer::new(state));
    let handle = server.handle();
    ```
-2. Register federated skills with the orchestrator so Jamey can call them by name:
+2. Register federated skills with the orchestrator so The Creator can call them by name:
    ```rust
    registry.register(Arc::new(FederatedBridgeSkill::new(
        "red_team_scan".into(),
@@ -42,7 +42,7 @@ Federated Communication Layer for Phoenix AGI (SAO): gRPC-based nervous system c
        0,
        vec!["red_team_scan".into()],
    );
-   client.run("http://jamey-ip:8002", |task| async move {
+   client.run("http://The Creator-ip:8002", |task| async move {
        // Run task locally, return TaskResult
        run_local_scan(&task).await
    }).await?;

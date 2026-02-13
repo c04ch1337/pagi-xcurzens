@@ -4,7 +4,7 @@
 //! - **GetHardwareStats**: Real-time CPU/RAM/Disk health for the Architect (sysinfo).
 //! - **SecureVault**: OS keychain-backed storage for API keys (keyring).
 //!
-//! Enables Phoenix to say: *"Jamey, while analyzing the PROOFPOINT logs, I noticed your
+//! Enables Phoenix to say: *"The Creator, while analyzing the PROOFPOINT logs, I noticed your
 //! Disk I/O is peaking at 95%. I've diagrammed the process bottleneck below."*
 
 use std::sync::Arc;

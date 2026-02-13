@@ -1023,6 +1023,7 @@ async fn main() {
     let app_name = config.app_name.clone();
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("{} listening on {} (port locked)", app_name, addr);
+    tracing::info!("[SYSTEM] Environment Bridge Active: Serving public config to frontends via /api/v1/config");
     
     // Graceful Shutdown: Ctrl+C handler to close VectorStore and prevent WAL corruption
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
@@ -2175,6 +2176,8 @@ fn persist_promotion_to_disk(
 }
 
 /// GET /api/v1/config – feature settings from .env for the Settings UI (no secrets). Includes MoE toggle state and all customizable env.
+/// This is the "Config Bridge" for the Sovereign Monolith: serves ONLY public, safe variables to frontends.
+/// STRICT FILTERING: Never includes OPENROUTER_API_KEY, ROOT_SOVEREIGN_IP, or any webhook URLs.
 async fn feature_config(State(state): State<AppState>) -> axum::Json<serde_json::Value> {
     let fs_access_enabled = std::env::var("PAGI_FS_ACCESS_ENABLED")
         .map(|v| v.trim().eq_ignore_ascii_case("true") || v.trim().is_empty())
@@ -2200,7 +2203,14 @@ async fn feature_config(State(state): State<AppState>) -> axum::Json<serde_json:
     let moe_mode = state.orchestrator.get_moe_mode().as_str();
     let orchestrator_role = state.persona_coordinator.get_mode().as_str();
     let density_mode = state.density_mode.read().await.clone();
+    
+    // Config Bridge: The Creator identity and system version (public metadata only)
+    let creator_identity = "The Creator";
+    let system_version = GATEWAY_VERSION;
+    
     axum::Json(serde_json::json!({
+        "sovereign_id": creator_identity,
+        "system_version": system_version,
         "fs_access_enabled": fs_access_enabled,
         "fs_root": fs_root,
         "llm_mode": llm_mode.trim().to_lowercase(),

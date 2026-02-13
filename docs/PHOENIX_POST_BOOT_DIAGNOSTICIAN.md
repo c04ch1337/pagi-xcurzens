@@ -350,7 +350,7 @@ When the user requests a Phoenix boot or cognitive health check:
 2. **Manual Invocation**: User says "Phoenix, verify cognitive health" or "Check Phoenix memory systems"
 3. **Troubleshooting**: User reports "Phoenix seems slow" or "Memory not working" → Run diagnostics
 
-### For User (Coach Jamey):
+### For User (Coach The Creator):
 
 Simply say:
 - **"Phoenix, rise"** → Full boot sequence + cognitive health check

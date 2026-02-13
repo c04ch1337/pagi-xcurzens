@@ -2,14 +2,14 @@ syntax = "proto3";
 
 package federation;
 
-// PhoenixService: Jamey (Master Orchestrator) <-> Satellites.
+// PhoenixService: The Creator (Master Orchestrator) <-> Satellites.
 // Binary Protocol Buffers for bandwidth-efficient federated control.
 service PhoenixService {
-  // Satellites announce their Role and Hardware; Jamey tracks them in the registry.
+  // Satellites announce their Role and Hardware; The Creator tracks them in the registry.
   rpc RegisterNode(RegisterNodeRequest) returns (RegisterNodeResponse);
 
-  // Bi-directional stream: Satellite sends TaskResult, Jamey sends Task.
-  // Client (Satellite) sends stream of TaskResult; Server (Jamey) sends stream of Task.
+  // Bi-directional stream: Satellite sends TaskResult, The Creator sends Task.
+  // Client (Satellite) sends stream of TaskResult; Server (The Creator) sends stream of Task.
   rpc SubmitTask(stream TaskResult) returns (stream Task);
 
   // Optional: Satellites stream heartbeats (bandwidth, CPU) every 30s.
@@ -39,7 +39,7 @@ message HardwareSpecs {
 message RegisterNodeResponse {
   bool accepted = 1;
   string message = 2;
-  string master_identity = 3;  // "Jamey"
+  string master_identity = 3;  // "The Creator"
 }
 
 // ---------------------------------------------------------------------------
@@ -57,17 +57,17 @@ message Task {
 message TaskResult {
   string task_id = 1;
   bool success = 2;
-  string summary = 3;        // Summarized report for Jamey's memory
+  string summary = 3;        // Summarized report for The Creator's memory
   string details_json = 4;   // Optional full payload
   string node_id = 5;
   string role = 6;
   int64 completed_at_ms = 7;
   uint32 energy_used = 8;
-  string tenant_id = 9;      // For Jamey's multi-layer memory logging
+  string tenant_id = 9;      // For The Creator's multi-layer memory logging
 }
 
 // ---------------------------------------------------------------------------
-// Heartbeat (Satellite -> Jamey every 30s)
+// Heartbeat (Satellite -> The Creator every 30s)
 // ---------------------------------------------------------------------------
 
 message HeartbeatRequest {

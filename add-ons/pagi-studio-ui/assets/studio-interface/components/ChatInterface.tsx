@@ -181,7 +181,7 @@ const EmptyStateGreeting: React.FC<EmptyStateGreetingProps> = ({ onSendMessage, 
       </div>
       <h2 className="text-lg font-semibold text-zinc-800 dark:text-zinc-200 tracking-tight">Phoenix Sovereign Core</h2>
       <p className="text-sm mt-1.5 text-zinc-600 dark:text-zinc-400 max-w-sm">
-        System Initialized. Counselor-Architect at your service, Jamey.
+        System Initialized. Counselor-Architect at your service, The Creator.
       </p>
       <div className="mt-3 flex items-center justify-center gap-2 flex-wrap">
         <span className="text-xs font-mono text-zinc-400 dark:text-zinc-600">Status: Idle</span>

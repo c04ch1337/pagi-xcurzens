@@ -14,4 +14,6 @@ Run all scripts from the **repository root** unless noted.
 | `setup_voice.sh` / `setup_voice.bat` | One-click Sovereign Voice (STT/TTS) setup |
 | `audit_stress_test.ps1` | Stress test and audit run |
 
-**Entry points (at repo root, not here):** `phoenix-rise.ps1`/`.sh`, `pagi-up.ps1`/`.sh`, `forge-kill-switch.ps1`/`.sh`, `phoenix-activate-live.ps1`/`.sh`, `phoenix-live-sync.ps1`/`.sh`.
+**Entry points (at repo root):** Run from project root: `.\start-sovereign.ps1`, `.\phoenix-rise.ps1` / `.\phoenix-rise.sh`, `.\pagi-up.ps1` / `.\pagi-up.sh`, `.\pagi-down.ps1`, `.\forge-kill-switch.ps1` / `.\forge-kill-switch.sh`, `.\forge-hot-reload.ps1` / `.\forge-hot-reload.sh`, `.\phoenix-activate-live.ps1` / `.\phoenix-activate-live.sh`, `.\phoenix-live-sync.ps1` / `.\phoenix-live-sync.sh`.
+
+**Documentation:** All guides and architecture docs are in [../docs/](../docs/) (see [docs/README.md](../docs/README.md) for the index).

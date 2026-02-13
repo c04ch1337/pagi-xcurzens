@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 /// Speaker ID is reserved for future intro-detection / diarization.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TranscriptSegment {
-    /// Reserved for intro-detection: "This is Jamey" → contacts table.
+    /// Reserved for intro-detection: "This is The Creator" → contacts table.
     pub speaker_id: Option<u32>,
     /// Transcribed text.
     pub text: String,

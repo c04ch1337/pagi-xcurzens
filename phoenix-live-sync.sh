@@ -63,7 +63,7 @@ echo -e "\033[1;33m[4/5] Testing Chat Endpoint with Sovereign Context...\033[0m"
 
 chat_payload='{
   "prompt": "Phoenix, confirm you are operating in LIVE mode with full access to the Sovereign Stack. What was our last conversation topic?",
-  "user_alias": "Coach Jamey",
+  "user_alias": "Coach The Creator",
   "agent_id": "phoenix"
 }'
 

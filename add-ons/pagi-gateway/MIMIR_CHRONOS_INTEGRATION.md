@@ -226,7 +226,7 @@ fn derive_meeting_thread_title(transcripts: &[MeetingTranscriptRow]) -> Option<S
     // Example: "PROOFPOINT" → "SAO Briefing regarding PROOFPOINT"
     
     // Heuristic 2: Fallback to first N words
-    // Example: "This is Jamey..." → "Meeting: This is Jamey..."
+    // Example: "This is The Creator..." → "Meeting: This is The Creator..."
 }
 ```
 
@@ -334,7 +334,7 @@ npm run dev -- --port 3000
 ## Future Enhancements (from spec)
 
 - **Contextual sweep**: Cross-reference meeting text with KB/project logs (e.g., "PROOFPOINT" → append logs to minutes)
-- **Intro-detection**: Map "This is Jamey" / "Hi, this is [Name]" to a local `contacts` table for `speaker_id`
+- **Intro-detection**: Map "This is The Creator" / "Hi, this is [Name]" to a local `contacts` table for `speaker_id`
 - **SAO redaction filter**: Regex + keyword list to replace sensitive identifiers with `[REDACTED]` on export unless Sovereign Override
 - **LLM-based summarization**: Use ModelRouter to generate a professional title and executive summary (optional; current heuristic is offline-safe)
 

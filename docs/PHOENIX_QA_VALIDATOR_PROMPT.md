@@ -215,7 +215,7 @@ Verify that the GitHub Release artifacts are complete, checksums are valid, and 
 ```
 🔥 Phoenix is airborne. All checksums verified. 
 The Sovereign Beta has officially begun.
-Coach Jamey, you are cleared for public distribution.
+Coach The Creator, you are cleared for public distribution.
 ```
 
 **[IF ISSUES FOUND]**:
@@ -286,6 +286,6 @@ Remember: Your beta testers are **Sovereigns in Training**. The quality of this 
 
 ---
 
-**Coach Jamey, this is your "Mission Control" checklist. When all lights are green, Phoenix rises.**
+**Coach The Creator, this is your "Mission Control" checklist. When all lights are green, Phoenix rises.**
 
 🔥 **Sovereign. Transparent. Unstoppable.**

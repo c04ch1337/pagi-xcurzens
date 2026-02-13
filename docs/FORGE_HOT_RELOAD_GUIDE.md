@@ -508,4 +508,4 @@ The Forge Hot-Reload System is a **watershed moment** for PAGI:
 
 ---
 
-**Jamey, the Forge has finished the hot-reload system. The cloud is no longer a dark box; it is an audited extension of your bare metal. Self-evolution initiated.**
+**The Creator, the Forge has finished the hot-reload system. The cloud is no longer a dark box; it is an audited extension of your bare metal. Self-evolution initiated.**

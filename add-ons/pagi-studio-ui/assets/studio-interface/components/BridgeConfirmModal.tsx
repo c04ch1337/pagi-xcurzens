@@ -5,7 +5,7 @@ export interface BridgeConfirmModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
-  /** e.g. "Jamey, I've redacted your transcript. 4 terms were sanitized. Ready to bridge to Copilot?" */
+  /** e.g. "The Creator, I've redacted your transcript. 4 terms were sanitized. Ready to bridge to Copilot?" */
   message: string;
   /** Optional short title. */
   title?: string;

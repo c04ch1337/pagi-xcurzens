@@ -72,7 +72,7 @@ LOG_ENTRY=$(cat <<EOF
 {
   "event": "forge_kill_switch_activated",
   "timestamp": "$TIMESTAMP",
-  "reason": "Emergency shutdown initiated by Coach Jamey",
+  "reason": "Emergency shutdown initiated by Coach The Creator",
   "action": "PAGI_FORGE_SAFETY_ENABLED set to true, all cargo/rustc processes terminated"
 }
 EOF

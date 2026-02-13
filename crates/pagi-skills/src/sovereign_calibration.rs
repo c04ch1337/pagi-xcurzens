@@ -1,6 +1,6 @@
 //! Sovereign Calibration Skill: Emotional & Urgency-Based Safety Governor Tuning
 //!
-//! **Mission**: Analyze Coach Jamey's sentiment and urgency patterns from chat history (KB-04)
+//! **Mission**: Analyze Coach The Creator's sentiment and urgency patterns from chat history (KB-04)
 //! and cross-reference with Evolution Inference reports (KB-08) to dynamically adjust the
 //! Safety Governor's sensitivity thresholds. This allows Phoenix to be more experimental
 //! during high-energy exploratory sessions and more conservative during production-critical work.

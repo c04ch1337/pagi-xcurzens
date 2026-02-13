@@ -39,7 +39,7 @@ const REPO_NAME: &str = "YOUR-ACTUAL-REPO-NAME";
 
 **Example**:
 ```rust
-const REPO_OWNER: &str = "jameymilner";
+const REPO_OWNER: &str = "The Creatormilner";
 const REPO_NAME: &str = "phoenix-marie";
 ```
 
@@ -93,9 +93,9 @@ https://github.com/YOUR-ACTUAL-USERNAME/YOUR-ACTUAL-REPO/issues/new
 # 3. Note the owner and repo name
 
 # Example:
-# Owner: jameymilner
+# Owner: The Creatormilner
 # Repo: phoenix-marie
-# Full URL: https://github.com/jameymilner/phoenix-marie
+# Full URL: https://github.com/The Creatormilner/phoenix-marie
 ```
 
 ### Step 2: Update Updater Module
@@ -105,7 +105,7 @@ https://github.com/YOUR-ACTUAL-USERNAME/YOUR-ACTUAL-REPO/issues/new
 code crates/pagi-core/src/updater.rs
 
 # Update lines 11-12:
-const REPO_OWNER: &str = "jameymilner";  # Your GitHub username
+const REPO_OWNER: &str = "The Creatormilner";  # Your GitHub username
 const REPO_NAME: &str = "phoenix-marie";  # Your repo name
 ```
 

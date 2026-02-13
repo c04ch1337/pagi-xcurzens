@@ -24,9 +24,10 @@ impl AgentSkill for WeatherSentinel {
         _ctx: &TenantContext,
         payload: Option<serde_json::Value>,
     ) -> Result<serde_json::Value, Box<dyn std::error::Error + Send + Sync>> {
-        let payload = payload.ok_or("weather_sentinel requires a payload")?.as_object().ok_or("payload must be object")?;
-        let p_location = payload.get("location").ok_or("Missing 'location'")?.clone();
-        let p_units = payload.get("units").cloned();
+        let payload_val = payload.ok_or("weather_sentinel requires a payload")?;
+        let payload_obj = payload_val.as_object().ok_or("payload must be object")?;
+        let p_location = payload_obj.get("location").ok_or("Missing 'location'")?.clone();
+        let p_units = payload_obj.get("units").cloned();
         Ok(serde_json::json!({
             "status": "ok",
             "skill": SKILL_NAME,

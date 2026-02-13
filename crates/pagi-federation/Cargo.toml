@@ -2,7 +2,7 @@
 name = "pagi-federation"
 version = "0.1.0"
 edition = "2021"
-description = "Federated Communication Layer: gRPC bridge for Phoenix AGI (Jamey) and Satellites"
+description = "Federated Communication Layer: gRPC bridge for Phoenix AGI (The Creator) and Satellites"
 
 [dependencies]
 tokio = { workspace = true }
@@ -24,7 +24,7 @@ rustls = { version = "0.23", features = ["ring"] }
 rustls-pemfile = "2.0"
 tokio-rustls = "0.26"
 
-# Optional: integrate with Jamey's core (memory, orchestrator trait)
+# Optional: integrate with The Creator's core (memory, orchestrator trait)
 pagi-core = { path = "../pagi-core" }
 
 [build-dependencies]

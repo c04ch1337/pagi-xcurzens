@@ -10,7 +10,7 @@ if ([string]::IsNullOrEmpty($Version)) {
     if (Test-Path "VERSION") {
         $Version = Get-Content "VERSION" -Raw
         $Version = $Version.Trim()
-        Write-Host "📦 Using version from VERSION file: $Version" -ForegroundColor Cyan
+        Write-Host "Using version from VERSION file: $Version" -ForegroundColor Cyan
     } else {
         Write-Host "❌ VERSION file not found and no version specified" -ForegroundColor Red
         Write-Host "Usage: .\trigger-release.ps1 [version]" -ForegroundColor Yellow
@@ -87,7 +87,7 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-Write-Host "✓ Tag created" -ForegroundColor Green
+Write-Host "[OK] Tag created" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "📤 Pushing tag to origin..." -ForegroundColor Cyan

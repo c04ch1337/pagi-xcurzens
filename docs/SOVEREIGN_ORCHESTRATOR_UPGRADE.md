@@ -156,7 +156,7 @@ After running the script, verify:
 
 ## 🎨 Sovereign Voice
 
-> "Jamey, the ignition sequence is now complete. The Auditor, the Scout, and the Architect are all fueled by the Qdrant memory engine. 21 acres of data, one command to rule them."
+> "The Creator, the ignition sequence is now complete. The Auditor, the Scout, and the Architect are all fueled by the Qdrant memory engine. 21 acres of data, one command to rule them."
 
 The Master Orchestrator now handles:
 - ✅ Execution policy validation

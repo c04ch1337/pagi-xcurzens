@@ -52,5 +52,5 @@ cargo run -p pagi-mimir -- --record --duration 60 --project "Project: SAO Update
 
 - **Pre-flight audio check**: Skill to verify loopback (e.g. Stereo Mix) is active before the meeting.
 - **Contextual sweep**: Cross-reference meeting text with KB/project logs (e.g. "PROOFPOINT" → append logs to minutes).
-- **Intro-detection**: Map "This is Jamey" / "Hi, this is [Name]" to a local `contacts` table for `speaker_id`.
+- **Intro-detection**: Map "This is The Creator" / "Hi, this is [Name]" to a local `contacts` table for `speaker_id`.
 - **SAO redaction filter**: Regex + keyword list to replace sensitive identifiers with `[REDACTED]` on export unless Sovereign Override.
